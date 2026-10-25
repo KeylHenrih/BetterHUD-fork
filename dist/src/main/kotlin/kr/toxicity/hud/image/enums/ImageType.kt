@@ -1,15 +1,24 @@
 package kr.toxicity.hud.image.enums
 
 import kr.toxicity.command.BetterCommandSource
+import kr.toxicity.hud.animation.AnimationMode
+import kr.toxicity.hud.animation.AnimationType
+import kr.toxicity.hud.animation.EasingType
+import kr.toxicity.hud.animation.ListenerAnimation
+import kr.toxicity.hud.animation.ListenerTracker
 import kr.toxicity.hud.api.component.PixelComponent
+import kr.toxicity.hud.api.component.WidthComponent
 import kr.toxicity.hud.api.listener.HudListener
 import kr.toxicity.hud.api.player.HudPlayer
 import kr.toxicity.hud.api.yaml.YamlObject
 import kr.toxicity.hud.element.ImageElement
 import kr.toxicity.hud.image.ImageComponent
+import kr.toxicity.hud.manager.ConfigManagerImpl
 import kr.toxicity.hud.util.*
 import kr.toxicity.hud.yaml.YamlObjectImpl
 import java.io.File
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 import kotlin.math.roundToInt
 import kotlin.text.replace
@@ -58,6 +67,24 @@ enum class ImageType {
     },
     LISTENER {
         override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent {
+            val listenerAnim = component.original.listenerAnimation
+            if (listenerAnim != null && component.images.isNotEmpty()) {
+                val tracker = trackerMap.computeIfAbsent(player.uuid()) {
+                    ConcurrentHashMap()
+                }.computeIfAbsent(component.original.id) {
+                    ListenerTracker(listenerAnim.duration, listenerAnim.easing)
+                }
+                val rawVal = listener.getValue(player)
+                val color = tracker.update(rawVal, player.worldTime())
+                val base = component.images.last()
+                return PixelComponent(
+                    WidthComponent(
+                        base.component.component.build().toBuilder().color(color),
+                        base.component.width
+                    ),
+                    base.pixel
+                )
+            }
             val get = listener.getValue(player).run {
                 if (isNaN()) 0 else (this * component.images.lastIndex).roundToInt()
             }
@@ -87,8 +114,36 @@ enum class ImageType {
                 assets,
                 fileName
             )
-            return ImageElement(
-                s,
+            val settingObj = yamlObject["setting"]?.asObject()
+                .ifNull { "setting configuration not found." }
+
+            val modeStr = (yamlObject["mode"] ?: settingObj["mode"])?.asString()?.lowercase()
+            val isClient = when (modeStr) {
+                "client" -> true
+                "server" -> false
+                else -> ConfigManagerImpl.animationMode == AnimationMode.CLIENT || ConfigManagerImpl.animationMode == AnimationMode.HYBRID
+            }
+            val listenerAnim = if (isClient) {
+                val duration = (settingObj["duration"] ?: yamlObject["duration"])?.asInt() ?: 10
+                val easingStr = (settingObj["easing"] ?: yamlObject["easing"])?.asString()
+                val anim = ListenerAnimation(splitType, duration.coerceAtLeast(0), EasingType.fromString(easingStr))
+                kr.toxicity.hud.animation.AnimationElementRegistry.register("image/$s", AnimationMode.CLIENT, AnimationType.LOOP, "Client listener bar ($splitType, easing=${anim.easing})")
+                anim
+            } else {
+                kr.toxicity.hud.animation.AnimationElementRegistry.register("image/$s", AnimationMode.SERVER, AnimationType.LOOP, "Server listener bar")
+                null
+            }
+
+            val imageList = if (listenerAnim != null) {
+                listOf(
+                    getFile
+                        .toImage()
+                        .flip(yamlObject.toFlip())
+                        .removeEmptySide()
+                        .ifNull { "Invalid image." }
+                        .toNamed("${fileName.replace(File.separatorChar, '_').substringBeforeLast('.')}_client.png")
+                )
+            } else {
                 splitType.split(
                     getFile
                         .toImage()
@@ -96,15 +151,22 @@ enum class ImageType {
                         .removeEmptySide()
                         .ifNull { "Invalid image." }
                         .toNamed("${fileName.replace(File.separatorChar, '_').substringBeforeLast('.')}_${splitType.name.lowercase()}_$split.png"), split
-                ),
+                )
+            }
+
+            return ImageElement(
+                s,
+                imageList,
                 this,
-                yamlObject["setting"]?.asObject()
-                    .ifNull { "setting configuration not found." }
+                settingObj,
+                listenerAnim
             )
         }
     },
     SEQUENCE {
         override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent {
+            val collapsed = component.collapsedImage
+            if (collapsed != null) return collapsed
             val get = listener.getValue(player).run {
                 if (isNaN()) 0 else (this * component.images.lastIndex).roundToInt()
             }
@@ -156,6 +218,12 @@ enum class ImageType {
     companion object {
         val emptySetting = YamlObjectImpl("", mutableMapOf<String, Any>())
         private val multiFrameRegex = Pattern.compile("(?<name>(([a-zA-Z]|/|.|(_))+)):(?<frame>([0-9]+))")
+        private val trackerMap = ConcurrentHashMap<UUID, ConcurrentHashMap<String, ListenerTracker>>()
+
+        fun getTrackers(uuid: UUID): Map<String, ListenerTracker>? = trackerMap[uuid]
+        fun removeTrackers(uuid: UUID) {
+            trackerMap.remove(uuid)
+        }
 
         private fun YamlObject.toFlip() = get("flip")?.asArray()?.map {
             FlipType.valueOf(it.asString().uppercase())
