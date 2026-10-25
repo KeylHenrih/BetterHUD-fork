@@ -115,7 +115,7 @@ animation-debug-probe: false
    - Popups exceeding 115 ticks automatically fall back according to `text-shadow-fallback` (`exact` smooth client animation without shadow, or `server` 20 Hz rendering with shadow).
 2. **Text Formatting & Decorations:**
    - `bold` and `italic` are fully supported (italic shear displacement is compensated in vertex shaders).
-   - `underlined`, `strikethrough`, and `obfuscated` decorations are not supported by the client pipeline: BetterHud's text splitter (`Component.split`) retains only `bold` and `italic`. Underline, strikethrough, and obfuscation are stripped during component creation (no visual artifacts, text renders without these line decorations).
+   - `underlined`, `strikethrough`, and `obfuscated` decorations: layouts containing these styles (`<u>`, `<st>`, `<obf>`) automatically fall back to server-side rendering with a console warning, preventing font renderer line geometry artifacts.
 3. **Shadow Alpha Channel:**
    - Minecraft's font renderer strips the alpha channel from text component colors (alpha is always 255). Only RGB of shadow colors is rendered; custom shadow alpha is ignored.
 4. **Vertex Count Overhead:**

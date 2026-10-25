@@ -96,8 +96,14 @@ class PopupImpl(
             val hasUnboundedDuration = clientAnim != null && clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && this@PopupImpl.duration <= 0
             val exceedsWindow = clientAnim != null && (maxDuration + lookahead > (240 - lookahead))
             val hasText = layoutObj.text.isNotEmpty()
+            val hasUnsupportedDecoration = layoutObj.text.any {
+                val p = it.pattern
+                p.contains("<u>", true) || p.contains("<underlined>", true) ||
+                p.contains("<st>", true) || p.contains("<strikethrough>", true) ||
+                p.contains("<obf>", true) || p.contains("<obfuscated>", true)
+            }
             var layoutM = 240
-            var enableClient = clientAnim != null && !hasHead && !exceedsWindow && !hasUnboundedDuration
+            var enableClient = clientAnim != null && !hasHead && !exceedsWindow && !hasUnboundedDuration && !hasUnsupportedDecoration
 
             if (hasUnboundedDuration) {
                 val reason = "duration <= 0 (unbounded lifetime, fallback to server)"
@@ -106,6 +112,10 @@ class PopupImpl(
             } else if (hasHead && clientAnim != null) {
                 val reason = "head not supported in client mode (fallback to server)"
                 warn("Popup '${this@PopupImpl.name}' layout '$layout' has heads, forcing SERVER mode.")
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
+            } else if (hasUnsupportedDecoration && clientAnim != null) {
+                val reason = "contains underline/strikethrough/obfuscated (fallback to server)"
+                warn("Popup '${this@PopupImpl.name}' layout '$layout' contains unsupported decorations (<u>/<st>/<obf>), forcing SERVER mode.")
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
             } else if (exceedsWindow) {
                 val reason = "duration ($maxDuration) exceeds safe time window (fallback to server)"

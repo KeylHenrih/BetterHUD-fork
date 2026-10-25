@@ -99,6 +99,22 @@ fun resolveShadow(
 }
 
 /**
+ * Checks whether any node contains decorations unsupported by client text shaders (<u>, <st>, <obf>).
+ */
+fun Component.hasUnsupportedClientDecorations(): Boolean {
+    val s = style()
+    if (s.decoration(TextDecoration.UNDERLINED) == TextDecoration.State.TRUE ||
+        s.decoration(TextDecoration.STRIKETHROUGH) == TextDecoration.State.TRUE ||
+        s.decoration(TextDecoration.OBFUSCATED) == TextDecoration.State.TRUE) {
+        return true
+    }
+    for (child in children()) {
+        if (child.hasUnsupportedClientDecorations()) return true
+    }
+    return false
+}
+
+/**
  * Checks whether any leaf node in the component tree produces a visible shadow.
  */
 fun Component.hasAnyShadow(

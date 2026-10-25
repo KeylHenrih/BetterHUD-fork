@@ -21,6 +21,8 @@ import kr.toxicity.hud.yaml.YamlObjectImpl
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
+import net.kyori.adventure.text.format.TextDecoration
+import kr.toxicity.hud.util.split
 import kr.toxicity.hud.util.applyColor
 import kr.toxicity.hud.util.HUD_DEFAULT_BIT
 import kr.toxicity.hud.util.HUD_MAX_BIT
@@ -30,6 +32,7 @@ import kr.toxicity.hud.text.applyClientExact
 import kr.toxicity.hud.text.applyClientExactDual
 import kr.toxicity.hud.text.applyClientDualRole
 import kr.toxicity.hud.text.DualCopyRole
+import kr.toxicity.hud.text.hasUnsupportedClientDecorations
 import net.kyori.adventure.text.TextComponent
 import java.io.File
 import kotlin.math.roundToInt
@@ -2041,6 +2044,51 @@ class ClientAnimationTest {
 
         assertEquals(0, kr.toxicity.hud.text.getExactSingleCacheSize(), "Single cache must be 0 after clear")
         assertEquals(0, kr.toxicity.hud.text.getExactDualCacheSize(), "Dual cache must be 0 after clear")
+    }
+
+    @Test
+    fun testTextDecorationStrippingInComponentSplit() {
+        val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+        val formatted = mm.deserialize("<b>Bold</b> <i>Italic</i> <u>Underlined</u> <st>Strikethrough</st> <obf>Obfuscated</obf>")
+
+        val splitOption = kr.toxicity.hud.util.SplitOption(endWidth = 1000, space = 0, forceSplit = false)
+        val splitResult = formatted.split(splitOption) { 8 }
+
+        assertTrue(splitResult.isNotEmpty(), "Split result must not be empty")
+
+        var foundBold = false
+        var foundItalic = false
+        var foundUnderline = false
+        var foundStrikethrough = false
+        var foundObfuscated = false
+
+        fun inspect(c: Component) {
+            val s = c.style()
+            if (s.decoration(TextDecoration.BOLD) == TextDecoration.State.TRUE) foundBold = true
+            if (s.decoration(TextDecoration.ITALIC) == TextDecoration.State.TRUE) foundItalic = true
+            if (s.decoration(TextDecoration.UNDERLINED) == TextDecoration.State.TRUE) foundUnderline = true
+            if (s.decoration(TextDecoration.STRIKETHROUGH) == TextDecoration.State.TRUE) foundStrikethrough = true
+            if (s.decoration(TextDecoration.OBFUSCATED) == TextDecoration.State.TRUE) foundObfuscated = true
+            c.children().forEach { inspect(it) }
+        }
+
+        splitResult.forEach { inspect(it.component().build()) }
+
+        println("Found in split: bold=$foundBold, italic=$foundItalic, underline=$foundUnderline, strikethrough=$foundStrikethrough, obf=$foundObfuscated")
+        assertTrue(foundBold, "Component.split must preserve BOLD")
+        assertTrue(foundItalic, "Component.split must preserve ITALIC")
+        assertTrue(foundUnderline, "Underline preserved in component tree")
+
+        // Test hasUnsupportedClientDecorations
+        val underlinedComp = mm.deserialize("<u>Underlined Text</u>")
+        val strikethroughComp = mm.deserialize("<st>Strikethrough Text</st>")
+        val obfuscatedComp = mm.deserialize("<obf>Obfuscated Text</obf>")
+        val normalComp = mm.deserialize("<b>Bold</b> and <i>Italic</i> text")
+
+        assertTrue(underlinedComp.hasUnsupportedClientDecorations(), "<u> must be flagged as unsupported client decoration")
+        assertTrue(strikethroughComp.hasUnsupportedClientDecorations(), "<st> must be flagged as unsupported client decoration")
+        assertTrue(obfuscatedComp.hasUnsupportedClientDecorations(), "<obf> must be flagged as unsupported client decoration")
+        assertFalse(normalComp.hasUnsupportedClientDecorations(), "Normal text must NOT be flagged as unsupported client decoration")
     }
 
     @Test
