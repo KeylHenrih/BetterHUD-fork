@@ -375,6 +375,7 @@ object CommandManager : BetterHudManager {
                 (player as? HudPlayerImpl)?.let { p ->
                     p.setPlayerAnimationMode(newMode)
                     kr.toxicity.hud.image.enums.ImageType.removeTrackers(p.uuid())
+                    kr.toxicity.hud.text.clearExactTextCache()
                     p.reload()
                 }
                 me.info("Set animation mode for '${player.name()}' to $newMode.")

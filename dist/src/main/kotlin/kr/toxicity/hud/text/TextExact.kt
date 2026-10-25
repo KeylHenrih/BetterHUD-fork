@@ -208,8 +208,12 @@ fun Component.applyClientExact(
 }
 
 private const val EXACT_CACHE_MAX_SIZE = 2048
-private val exactDualCache = java.util.concurrent.ConcurrentHashMap<ExactDualCacheKey, WidthComponent>()
-private val exactSingleCache = java.util.concurrent.ConcurrentHashMap<ExactSingleCacheKey, WidthComponent>()
+private val exactDualCache: MutableMap<ExactDualCacheKey, WidthComponent> = net.jodah.expiringmap.ExpiringMap.builder()
+    .maxSize(EXACT_CACHE_MAX_SIZE)
+    .build()
+private val exactSingleCache: MutableMap<ExactSingleCacheKey, WidthComponent> = net.jodah.expiringmap.ExpiringMap.builder()
+    .maxSize(EXACT_CACHE_MAX_SIZE)
+    .build()
 
 data class ExactDualCacheKey(val component: Component, val tStartByte: Int, val moduloM: Int, val width: Int)
 data class ExactSingleCacheKey(val component: Component, val tStartByte: Int, val width: Int)
@@ -218,6 +222,9 @@ fun clearExactTextCache() {
     exactDualCache.clear()
     exactSingleCache.clear()
 }
+
+fun getExactDualCacheSize(): Int = exactDualCache.size
+fun getExactSingleCacheSize(): Int = exactSingleCache.size
 
 fun WidthComponent.applyClientExact(tStartByte: Int): WidthComponent {
     val built = component.build()
@@ -228,7 +235,6 @@ fun WidthComponent.applyClientExact(tStartByte: Int): WidthComponent {
     val builder = if (transformed is TextComponent) transformed.toBuilder() else Component.text().append(transformed)
     val result = WidthComponent(builder, width)
 
-    if (exactSingleCache.size >= EXACT_CACHE_MAX_SIZE) exactSingleCache.clear()
     exactSingleCache[key] = result
     return result
 }
@@ -268,7 +274,6 @@ fun WidthComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): WidthCom
         )
         shadowWidthComp + backstep + textWidthComp
     }
-    if (exactDualCache.size >= EXACT_CACHE_MAX_SIZE) exactDualCache.clear()
     exactDualCache[key] = result
     return result
 }

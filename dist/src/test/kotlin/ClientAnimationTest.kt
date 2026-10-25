@@ -1915,6 +1915,8 @@ class ClientAnimationTest {
         val tStart = 5
         val M = 30
 
+        kr.toxicity.hud.text.clearExactTextCache()
+
         // Call 1: Populates cache
         val res1 = widthComp.applyClientExactDual(tStart, M)
 
@@ -1922,18 +1924,123 @@ class ClientAnimationTest {
         val res2 = widthComp.applyClientExactDual(tStart, M)
         assertSame(res1, res2, "Subsequent calls with identical inputs MUST return cached WidthComponent instance")
 
-        // Benchmark: 100 players * 20 ticks = 2,000 calls
+        // Un-cached baseline benchmark: 2,000 cold calls (clearing cache every time)
         val iterations = 2000
-        val startTime = System.nanoTime()
+        val unCachedStart = System.nanoTime()
+        for (i in 1..iterations) {
+            kr.toxicity.hud.text.clearExactTextCache()
+            widthComp.applyClientExactDual(tStart, M)
+        }
+        val unCachedElapsedMs = (System.nanoTime() - unCachedStart) / 1_000_000.0
+
+        // Cached benchmark: 2,000 hot calls
+        val cachedStart = System.nanoTime()
+        var firstCachedRes: WidthComponent? = null
         var lastRes: WidthComponent? = null
         for (i in 1..iterations) {
-            lastRes = widthComp.applyClientExactDual(tStart, M)
+            val r = widthComp.applyClientExactDual(tStart, M)
+            if (firstCachedRes == null) firstCachedRes = r
+            lastRes = r
         }
-        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0
-        assertSame(res1, lastRes)
+        val cachedElapsedMs = (System.nanoTime() - cachedStart) / 1_000_000.0
+        assertSame(firstCachedRes, lastRes)
 
-        // 2,000 cached lookups should execute in well under 15ms (typically < 2ms)
-        assertTrue(elapsedMs < 100.0, "2,000 cached evaluations took ${elapsedMs}ms, must be < 100ms")
+        val speedup = if (cachedElapsedMs > 0.0) unCachedElapsedMs / cachedElapsedMs else 100.0
+        println("=== TEXT CACHE BENCHMARK (2,000 iterations) ===")
+        println("Un-cached: %.2f ms (%.1f ops/sec)".format(unCachedElapsedMs, (iterations / (unCachedElapsedMs / 1000.0))))
+        println("Cached:    %.2f ms (%.1f ops/sec)".format(cachedElapsedMs, (iterations / (cachedElapsedMs / 1000.0))))
+        println("Speedup:   %.1fx".format(speedup))
+        println("================================================")
+
+        assertTrue(cachedElapsedMs < 50.0, "2,000 cached evaluations took ${cachedElapsedMs}ms, must be < 50ms")
+        assertTrue(speedup > 1.5, "Cached execution must provide noticeable speedup over un-cached (was ${speedup}x)")
+    }
+
+    @Test
+    fun testExactCacheKeyDistinctness() {
+        kr.toxicity.hud.text.clearExactTextCache()
+        val c1 = Component.text("Test A")
+        val c2 = Component.text("Test B")
+        val wc1 = WidthComponent(Component.text().append(c1), 50)
+        val wc2 = WidthComponent(Component.text().append(c2), 50)
+        val wc3 = WidthComponent(Component.text().append(c1), 100) // same text, different width
+
+        val r1 = wc1.applyClientExactDual(1, 30)
+        val r2 = wc2.applyClientExactDual(1, 30) // different AST
+        val r3 = wc1.applyClientExactDual(2, 30) // different tStart
+        val r4 = wc1.applyClientExactDual(1, 60) // different moduloM
+        val r5 = wc3.applyClientExactDual(1, 30) // different width
+
+        assertNotEquals(r1, r2, "Different AST must yield different cache result")
+        assertNotEquals(r1, r3, "Different tStart must yield different cache result")
+        assertNotEquals(r1, r4, "Different moduloM must yield different cache result")
+        assertNotEquals(r1.width, r5.width, "Different width must yield different width")
+        assertEquals(5, kr.toxicity.hud.text.getExactDualCacheSize(), "5 distinct keys must populate 5 entries")
+    }
+
+    @Test
+    fun testExactCacheBoundedSizeStress100k() {
+        kr.toxicity.hud.text.clearExactTextCache()
+        val baseComp = Component.text("StressTest")
+        // Insert 100,000 distinct items (varying tStart and width)
+        for (i in 0 until 100_000) {
+            val wc = WidthComponent(Component.text().append(baseComp), i % 1000)
+            wc.applyClientExact(i % 240)
+        }
+        val size = kr.toxicity.hud.text.getExactSingleCacheSize()
+        assertTrue(size <= 2048, "Exact single cache size ($size) must NOT exceed bound 2048")
+        assertTrue(size >= 1000, "Cache should maintain active capacity up to bound")
+    }
+
+    @Test
+    fun testExactCacheConcurrentFoliaStress() {
+        kr.toxicity.hud.text.clearExactTextCache()
+        val threadCount = 16
+        val opsPerThread = 5_000
+        val executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount)
+        val exceptions = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+        val latch = java.util.concurrent.CountDownLatch(threadCount)
+
+        for (t in 0 until threadCount) {
+            executor.submit {
+                try {
+                    val comp = Component.text("Thread-$t-Component")
+                    val wc = WidthComponent(Component.text().append(comp), 60 + t)
+                    for (i in 0 until opsPerThread) {
+                        val tStart = (i + t) % 30
+                        val res = wc.applyClientExactDual(tStart, 30)
+                        assertNotNull(res)
+                    }
+                } catch (e: Throwable) {
+                    exceptions.add(e)
+                } finally {
+                    latch.countDown()
+                }
+            }
+        }
+        latch.await(30, java.util.concurrent.TimeUnit.SECONDS)
+        executor.shutdown()
+
+        assertTrue(exceptions.isEmpty(), "Concurrent operations must not throw exceptions: $exceptions")
+        val size = kr.toxicity.hud.text.getExactDualCacheSize()
+        assertTrue(size <= 2048, "Cache size ($size) under concurrent load must not exceed bound 2048")
+    }
+
+    @Test
+    fun testExactCacheInvalidationOnReload() {
+        kr.toxicity.hud.text.clearExactTextCache()
+        val wc = WidthComponent(Component.text().append(Component.text("To be cleared")), 50)
+        wc.applyClientExact(10)
+        wc.applyClientExactDual(10, 30)
+
+        assertTrue(kr.toxicity.hud.text.getExactSingleCacheSize() > 0)
+        assertTrue(kr.toxicity.hud.text.getExactDualCacheSize() > 0)
+
+        // Simulate reload or mode switch
+        kr.toxicity.hud.text.clearExactTextCache()
+
+        assertEquals(0, kr.toxicity.hud.text.getExactSingleCacheSize(), "Single cache must be 0 after clear")
+        assertEquals(0, kr.toxicity.hud.text.getExactDualCacheSize(), "Dual cache must be 0 after clear")
     }
 
     @Test
