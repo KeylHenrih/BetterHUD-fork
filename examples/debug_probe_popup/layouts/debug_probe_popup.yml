@@ -1,0 +1,110 @@
+debug-probe-layout:
+  texts:
+    title:
+      name: default_font
+      pattern: "<yellow>=== BETTERHUD ANIMATION DEBUG PROBE ===</yellow>"
+      x: 0
+      y: -95
+      align: center
+    desc_alpha:
+      name: default_font
+      pattern: "<white>1. SHADOW ALPHA (0..255) - Pos 0 blank, 1..255 ALL GREEN:</white>"
+      x: 0
+      y: -82
+      align: center
+    probe_alpha:
+      name: default_font
+      pattern: "[debug_probe:alpha]"
+      x: 0
+      y: -72
+      align: center
+    desc_red:
+      name: default_font
+      pattern: "<white>2. SHADOW RED (0..255) - ALL GREEN:</white>"
+      x: 0
+      y: -60
+      align: center
+    probe_red:
+      name: default_font
+      pattern: "[debug_probe:red]"
+      x: 0
+      y: -50
+      align: center
+    desc_green:
+      name: default_font
+      pattern: "<white>3. SHADOW GREEN (0..255) - ALL GREEN:</white>"
+      x: 0
+      y: -38
+      align: center
+    probe_green:
+      name: default_font
+      pattern: "[debug_probe:green]"
+      x: 0
+      y: -28
+      align: center
+    desc_blue:
+      name: default_font
+      pattern: "<white>4. SHADOW BLUE (0..255) - ALL GREEN:</white>"
+      x: 0
+      y: -16
+      align: center
+    probe_blue:
+      name: default_font
+      pattern: "[debug_probe:blue]"
+      x: 0
+      y: -6
+      align: center
+    desc_main_alpha:
+      name: default_font
+      pattern: "<white>5. MAIN GLYPH ALPHA (0..255) - ALL GREEN = ALWAYS 255:</white>"
+      x: 0
+      y: 6
+      align: center
+    probe_main_alpha:
+      name: default_font
+      pattern: "[debug_probe:main_alpha]"
+      x: 0
+      y: 16
+      align: center
+    probe_offset_normal:
+      name: default_font
+      pattern: "[debug_probe:offset_normal]"
+      x: 0
+      y: 28
+      align: center
+    probe_offset_bold:
+      name: default_font
+      pattern: "[debug_probe:offset_bold]"
+      x: 0
+      y: 40
+      align: center
+    probe_offset_italic:
+      name: default_font
+      pattern: "[debug_probe:offset_italic]"
+      x: 0
+      y: 52
+      align: center
+    probe_z_order:
+      name: default_font
+      pattern: "[debug_probe:z_order]"
+      x: 0
+      y: 64
+      align: center
+    desc_vertex:
+      name: default_font
+      pattern: "<white>8. VERTEX CORNERS (0=Red, 1=Green, 2=Blue, 3=Yellow):</white>"
+      x: 0
+      y: 76
+      align: center
+    probe_vertex:
+      name: default_font
+      pattern: "[debug_probe:vertex_order]"
+      x: 0
+      y: 86
+      align: center
+  animations:
+    type: play_once
+    duration: 60
+    x-equation: "0"
+    y-equation: "0"
+    opacity-equation: "1"

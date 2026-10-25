@@ -1,0 +1,20 @@
+debug-image-layout:
+  images:
+    bg:
+      name: notification_bg_info_1
+      x: -50
+      y: -20
+    icon:
+      name: notification_bg_success_1
+      x: 0
+      y: -20
+    accent:
+      name: notification_bg_warning_1
+      x: 50
+      y: -20
+  animations:
+    type: play_once
+    duration: 40
+    x-equation: "120 * 0.5 * (1 + cos(pi * min(1, max(0, t) / 10)))"
+    y-equation: "-15 * (1 - min(1, max(0, t) / 10)) ^ 2 * cos(2 * pi * min(1, max(0, t) / 10))"
+    opacity-equation: "min(1, (t / 5) ^ 2)"

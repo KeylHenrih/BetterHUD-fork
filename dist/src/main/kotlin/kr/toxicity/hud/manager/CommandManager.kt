@@ -20,15 +20,21 @@ import kr.toxicity.hud.api.update.UpdateEvent
 import kr.toxicity.hud.command.*
 import kr.toxicity.hud.placeholder.PlaceholderSource
 import kr.toxicity.hud.resource.GlobalResource
+import kr.toxicity.hud.image.enums.ImageType
+import kr.toxicity.hud.player.HudPlayerImpl
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+import net.kyori.adventure.text.format.NamedTextColor
 import kr.toxicity.hud.util.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import java.io.File
+import kotlin.math.roundToInt
 
 object CommandManager : BetterHudManager {
 
     override val managerName: String = "Command"
     override val supportExternalPacks: Boolean = false
+    private val heldPopups = java.util.concurrent.ConcurrentHashMap<java.util.UUID, java.util.concurrent.ConcurrentHashMap<String, kr.toxicity.hud.api.popup.PopupUpdater>>()
 
     val library = BetterCommand(DATA_FOLDER.subFolder("lang").apply {
         PLUGIN.loadAssets("lang") { name, stream ->
@@ -191,6 +197,169 @@ object CommandManager : BetterHudManager {
                 }
             }
             //Generate
+
+            //DebugAnim
+            @Command
+            @Description(key = "betterhud.debug_anim.description", defaultValue = "Prints client animation debug information.")
+            @Aliases(aliases = ["debug-anim", "da"])
+            @Permission("betterhud.admin")
+            fun debugAnim(@Source me: BetterCommandSource, @Option target: HudPlayerStack?) {
+                val targets = target?.toList() ?: (me as? HudPlayer)?.let { listOf(it) } ?: PlayerManagerImpl.allHudPlayer
+                me.info("=== BetterHud Animation Debug ===")
+                me.info("Global Animation Mode: ${ConfigManagerImpl.animationMode}")
+                val elements = kr.toxicity.hud.animation.AnimationElementRegistry.getAll()
+                if (elements.isNotEmpty()) {
+                    me.info("--- Registered Animation Elements (${elements.size}) ---")
+                    elements.values.sortedBy { it.name }.forEach { info ->
+                        val tag = if (info.mode == kr.toxicity.hud.animation.AnimationMode.CLIENT) "[CLIENT]" else "[SERVER]"
+                        me.info("  $tag ${info.name} (${info.type}): ${info.reason}")
+                    }
+                }
+                if (targets.isEmpty()) {
+                    me.info("No players online to inspect.")
+                    return
+                }
+                targets.forEach { player ->
+                    me.info("--- Player: ${player.name()} (tick: ${player.tick}, ping: ${player.ping()}ms, worldTime: ${player.worldTime()}, UUID: ${player.uuid()}) ---")
+                    val impl = player as? HudPlayerImpl
+                    val isBedrock = BOOTSTRAP.isBedrockPlayer(player.uuid())
+                    me.info("Animation Mode: ${impl?.getPlayerAnimationMode() ?: "AUTO"} (Effective: ${if (impl?.isClientAnimationEnabled() == true) "CLIENT" else "SERVER"}, Bedrock: $isBedrock)")
+                    val huds = player.getHuds().map { it.name }
+                    me.info("Active HUDs: ${if (huds.isEmpty()) "(none)" else huds.joinToString(", ")}")
+                    val lastComp = impl?.getLastSentComponent()
+                    if (lastComp != null) {
+                        val json = GsonComponentSerializer.gson().serialize(lastComp)
+                        me.info("Last Sent Component (JSON): $json")
+                    } else {
+                        me.info("Last Sent Component: (none)")
+                    }
+                    val trackers = ImageType.getTrackers(player.uuid())
+                    if (!trackers.isNullOrEmpty()) {
+                        trackers.forEach { (id, tracker) ->
+                            val tStart = (tracker.startTickVal % 240).toInt()
+                            val from = (tracker.fromVal * 255.0).toInt()
+                            val to = (tracker.toVal * 255.0).toInt()
+                            val colorHex = String.format("#%02X%02X%02X", tStart, from, to)
+                            me.info("Tracker '$id': target=${tracker.currentTarget}, from=${tracker.fromVal}, to=${tracker.toVal}, startTick=${tracker.startTickVal}")
+                            me.info("  Encoded Color: $colorHex (tStart=$tStart, fromByte=$from, toByte=$to)")
+                        }
+                    } else {
+                        me.info("Trackers: (none active)")
+                    }
+                    var popupCount = 0
+                    player.popupGroupIteratorMap.forEach { (groupName, group) ->
+                        val iterators = (group as? kr.toxicity.hud.popup.PopupIteratorGroupImpl)?.iterators ?: emptyList()
+                        if (iterators.isNotEmpty()) {
+                            iterators.forEach { it ->
+                                popupCount++
+                                val now = player.worldTime()
+                                val spawn = it.spawnTime
+                                val lookahead = (player.ping() / 100.0).roundToInt().coerceIn(0, ConfigManagerImpl.animationLookaheadMax)
+                                val startTick = spawn + lookahead
+                                val tStartByte = ((startTick % 240).toInt()).coerceIn(0, 239)
+                                val elapsed = (now - spawn).toInt()
+                                val colorHex = String.format("#%02X0000", tStartByte)
+                                var warning = ""
+                                if (elapsed < 0) warning = " [WARNING: elapsed < 0]"
+                                else if (elapsed > 230) warning = " [WARNING: elapsed exceeds 230 window]"
+                                me.info("  Active Popup '${it.name()}' (group=$groupName, index=${it.index}): spawnTime=$spawn, startTick=$startTick, tStart=$tStartByte, color=$colorHex, elapsed=${elapsed}t$warning")
+                            }
+                        }
+                    }
+                    if (popupCount == 0) {
+                        me.info("Active Popups: (none active)")
+                    }
+                }
+            }
+            //DebugAnim
+
+            @Command
+            @Description(key = "betterhud.debug_popup.description", defaultValue = "Spawns a popup for animation debugging.")
+            @Aliases(aliases = ["debug-popup", "dp"])
+            @Permission("betterhud.admin")
+            fun debugPopup(@Source me: BetterCommandSource, popups: PopupStack, @Option hold: String?) {
+                val isHold = hold?.equals("hold", ignoreCase = true) == true || hold?.equals("true", ignoreCase = true) == true
+                val isStop = hold?.equals("stop", ignoreCase = true) == true || hold?.equals("cancel", ignoreCase = true) == true || hold?.equals("clear", ignoreCase = true) == true
+                val targets = (me as? HudPlayer)?.let { listOf(it) } ?: PlayerManagerImpl.allHudPlayer
+                if (targets.isEmpty()) {
+                    me.warn("No players online to display debug popup.")
+                    return
+                }
+                targets.forEach { player ->
+                    popups.forEach { popup ->
+                        if (isStop) {
+                            heldPopups[player.uuid()]?.remove(popup.name)?.remove()
+                            me.info("Stopped held debug popup '${popup.name}' for player '${player.name()}'.")
+                        } else {
+                            heldPopups[player.uuid()]?.remove(popup.name)?.remove()
+                            val iter = popup.show(UpdateEvent.EMPTY, player)
+                            if (iter != null) {
+                                if (isHold) {
+                                    iter.setIndex(0)
+                                    heldPopups.computeIfAbsent(player.uuid()) { java.util.concurrent.ConcurrentHashMap() }[popup.name] = iter
+                                }
+                                me.info("Spawned debug popup '${popup.name}' for player '${player.name()}' (hold=$isHold).")
+                            } else {
+                                me.warn("Failed to spawn debug popup '${popup.name}' for player '${player.name()}'.")
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Command
+            @Description(key = "betterhud.debug_color.description", defaultValue = "Tests hex color formatting.")
+            @Aliases(aliases = ["debug-color"])
+            @Permission("betterhud.admin")
+            fun debugColor(
+                @Source me: BetterCommandSource,
+                hex: String
+            ) {
+                val cleanHex = if (hex.startsWith("#")) hex else "#$hex"
+                val parsedColor = net.kyori.adventure.text.format.TextColor.fromHexString(cleanHex)
+                if (parsedColor == null) {
+                    me.warn("Invalid hex color: $hex (use format #RRGGBB or RRGGBB)")
+                    return
+                }
+                val comp = net.kyori.adventure.text.Component.text("■ Exact Color Test: $cleanHex")
+                    .color(parsedColor)
+                me.info(comp)
+            }
+
+            @Command
+            @Description(key = "betterhud.animation_mode.description", defaultValue = "Sets animation mode for a player or self.")
+            @Aliases(aliases = ["animation-mode", "am"])
+            fun animationMode(
+                @Source me: BetterCommandSource,
+                target: String,
+                @Option mode: String?
+            ) {
+                val player = if (target.equals("self", ignoreCase = true)) {
+                    me as? HudPlayer ?: run {
+                        me.warn("Only players can use 'self'.")
+                        return
+                    }
+                } else {
+                    if (!me.hasPermission("betterhud.admin")) {
+                        me.warn("You do not have permission 'betterhud.admin' to set other players' animation mode.")
+                        return
+                    }
+                    PlayerManagerImpl.getHudPlayer(target) ?: run {
+                        me.warn("Player '$target' not found.")
+                        return
+                    }
+                }
+                val newMode = mode?.uppercase()?.let {
+                    runCatching { kr.toxicity.hud.animation.PlayerAnimationMode.valueOf(it) }.getOrNull()
+                } ?: run {
+                    val impl = player as? HudPlayerImpl
+                    val current = impl?.getPlayerAnimationMode() ?: kr.toxicity.hud.animation.PlayerAnimationMode.AUTO
+                    me.info("Player '${player.name()}' animation mode is $current (effective: ${if (impl?.isClientAnimationEnabled() == true) "CLIENT" else "SERVER"}).")
+                    return
+                }
+                (player as? HudPlayerImpl)?.setPlayerAnimationMode(newMode)
+                me.info("Set animation mode for '${player.name()}' to $newMode.")
+            }
         }).children("hud") {
             it.permission("betterhud.hud")
                 .description(CommandMessage("betterhud.hud.description", Component.text("Manages player's hud.")))
@@ -546,6 +715,17 @@ object CommandManager : BetterHudManager {
 
 
     override fun start() {
+        asyncTaskTimer(10, 10) {
+            if (heldPopups.isNotEmpty()) {
+                heldPopups.forEach { (uuid, map) ->
+                    if (PlayerManagerImpl.getHudPlayer(uuid) == null) {
+                        heldPopups.remove(uuid)
+                    } else {
+                        map.values.removeIf { !it.update() }
+                    }
+                }
+            }
+        }
     }
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
@@ -553,5 +733,9 @@ object CommandManager : BetterHudManager {
     }
 
     override fun end() {
+        heldPopups.values.forEach { map ->
+            map.values.forEach { it.remove() }
+        }
+        heldPopups.clear()
     }
 }

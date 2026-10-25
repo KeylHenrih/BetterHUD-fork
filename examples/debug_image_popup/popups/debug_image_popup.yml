@@ -1,0 +1,23 @@
+debug_image_popup:
+  duration: 40
+  group: debug_popup_stack
+  queue: false
+  push: true
+  move:
+    duration: 5
+    pixel:
+      x-equation: 0
+      y-equation: 0
+  triggers:
+    1:
+      class: custom
+      name: "debug_image_popup"
+  layouts:
+    1:
+      name: debug-image-layout
+      gui:
+        x: 50
+        y: 50
+      pixel:
+        x: 0
+        y: 0
