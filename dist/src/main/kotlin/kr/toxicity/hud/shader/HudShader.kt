@@ -17,7 +17,8 @@ data class HudShader(
     val sequenceAnimation: SequenceAnimation? = null,
     val isText: Boolean = false,
     val isProbe: Boolean = false,
-    val moduloM: Int = 240
+    val moduloM: Int = 240,
+    val name: String = ""
 ) : Comparable<HudShader> {
     companion object {
         private val clientAnimationComparator: Comparator<ClientAnimation?> = Comparator.nullsFirst(Comparator.naturalOrder<ClientAnimation>())
@@ -41,6 +42,7 @@ data class HudShader(
         .thenComparing { s: HudShader -> s.isText }
         .thenComparing { s: HudShader -> s.isProbe }
         .thenComparingInt { s: HudShader -> s.moduloM }
+        .thenComparing { s: HudShader -> s.name }
     }
 
     override fun compareTo(other: HudShader): Int {

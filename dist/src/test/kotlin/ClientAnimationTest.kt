@@ -1910,6 +1910,44 @@ class ClientAnimationTest {
 
     @Test
     fun testShaderLayoutSlotOverflow() {
+        val warnings = mutableListOf<String>()
+        val mockLogger = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudLogger::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudLogger::class.java)
+        ) { _, method, args ->
+            if (method.name == "warn") {
+                val arr = args?.get(0)
+                if (arr is Array<*>) {
+                    warnings.addAll(arr.filterIsInstance<String>())
+                }
+            }
+            null
+        } as kr.toxicity.hud.api.BetterHudLogger
+
+        val mockBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "logger" -> mockLogger
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+
+        val mockHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> mockBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+
+        val mainField = kr.toxicity.hud.api.BetterHudAPI::class.java.getDeclaredField("main")
+        mainField.isAccessible = true
+        mainField.set(null, mockHud)
+
         val gui = GuiLocation(0.0, 0.0)
         val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
         val maxLayouts = (1 shl HUD_MAX_BIT) - 1 // 1023
@@ -1917,24 +1955,37 @@ class ClientAnimationTest {
         val assignedIds = mutableListOf<Int>()
         val dummyConsumer: (Int) -> Unit = { assignedIds.add(it) }
 
-        // Create 1025 shaders (1023 valid + 2 overflowing)
+        // Create 1100 synthetic layouts (1023 valid + 77 overflowing)
         val testShaders = LinkedHashMap<HudShader, List<(Int) -> Unit>>()
-        for (i in 1..1025) {
-            val shader = HudShader(gui, scale, layer = i, outline = 0, opacity = 1.0, property = 0)
+        for (i in 1..1100) {
+            val shader = HudShader(gui, scale, layer = i, outline = 0, opacity = 1.0, property = 0, name = "layout_$i")
             testShaders[shader] = listOf(dummyConsumer)
         }
 
         val layout = ShaderManagerImpl.generateShaderLayout(testShaders)
 
-        // Must not contain case 1024 or higher
-        assertFalse(layout.any { it.contains("case 1024:") }, "Layout must not contain case 1024: overflow slots must be omitted")
-        assertFalse(layout.any { it.contains("case 1025:") }, "Layout must not contain case 1025: overflow slots must be omitted")
+        // 1. Case 0 must be present as explicit static fallback
+        assertTrue(layout.any { it.contains("case 0:") }, "Layout must contain dedicated safe static fallback case 0")
 
-        // Overflown shaders must fall back to id 0 (static rendering without bit corruption)
-        assertEquals(1025, assignedIds.size)
+        // 2. Case 1 through 1023 must exist
+        assertTrue(layout.any { it.contains("case 1:") }, "Layout must contain case 1")
+        assertTrue(layout.any { it.contains("case 1023:") }, "Layout must contain case 1023")
+
+        // 3. Must not contain case 1024 through 1100
+        assertFalse(layout.any { it.contains("case 1024:") }, "Layout must not contain case 1024: overflow slots must be omitted")
+        assertFalse(layout.any { it.contains("case 1100:") }, "Layout must not contain case 1100: overflow slots must be omitted")
+
+        // 4. Overflown shaders (1024..1100) must fall back to id 0
+        assertEquals(1100, assignedIds.size)
+        assertEquals(1, assignedIds[0], "Slot 1 must get id 1")
         assertEquals(1023, assignedIds[1022], "Slot 1023 must get id 1023")
-        assertEquals(0, assignedIds[1023], "Slot 1024 must fall back to 0")
-        assertEquals(0, assignedIds[1024], "Slot 1025 must fall back to 0")
+        for (idx in 1023 until 1100) {
+            assertEquals(0, assignedIds[idx], "Slot ${idx + 1} must fall back to static id 0")
+        }
+
+        // 5. Warning log must list all overflown layout names in a single message
+        assertTrue(warnings.any { it.contains("Layout slot overflow") && it.contains("layout_1024") && it.contains("layout_1100") },
+            "Warning log must contain single summary list of all overflown layout names")
     }
 
     @Test

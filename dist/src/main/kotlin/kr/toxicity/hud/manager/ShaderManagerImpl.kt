@@ -236,18 +236,24 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
     fun generateShaderLayout(shaders: Map<HudShader, List<(Int) -> Unit>>): List<String> {
         val maxLayouts = (1 shl HUD_MAX_BIT) - 1
         if (shaders.size > maxLayouts) {
+            val overflownNames = shaders.keys.drop(maxLayouts).map { it.name.ifEmpty { "shader#${it.hashCode()}" } }.distinct()
             runCatching {
-                warn("Layout slot overflow: BetterHUD supports up to $maxLayouts unique shader layouts (current count: ${shaders.size}). Layouts beyond $maxLayouts will fall back to static rendering.")
+                warn("Layout slot overflow: BetterHUD supports up to $maxLayouts unique shader layouts (current count: ${shaders.size}). The following layouts fell back to static rendering: $overflownNames")
             }
         }
-        return shaders.entries.foldIndexed(arrayListOf()) { index, arr, entry ->
+        val arr = arrayListOf<String>()
+        arr.add("case 0: {")
+        arr.add("    // Reserved safe static fallback case for overflown layouts")
+        arr.add("    break;")
+        arr.add("}")
+        return shaders.entries.foldIndexed(arr) { index, list, entry ->
             val shader = entry.key
             val id = index + 1
             if (id > maxLayouts) {
                 entry.value.forEach { it(0) }
-                return@foldIndexed arr
+                return@foldIndexed list
             }
-            arr.add("case ${id}: {")
+            list.add("case ${id}: {")
             if (shader.property > 0) arr.add("    property = ${shader.property};")
             if (shader.opacity < 1.0) arr.add("    opacity = ${shader.opacity.toFloat()};")
             val isProbe = shader.isProbe || (shader.isText && ConfigManagerImpl.animationDebugProbe)
