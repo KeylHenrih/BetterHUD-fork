@@ -248,48 +248,73 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
             removeDefaultHotbar = yaml.getAsBoolean("remove-default-hotbar", false)
             disableLegacyOffset = yaml.getAsBoolean("disable-legacy-offset", false)
             mergeWithExternalResources = yaml.getAsBoolean("merge-with-external-resources", true)
+
+            val shaderKeys = listOf(
+                "animation-mode", "text-client-mode", "text-shadow-mode",
+                "text-shadow-fallback", "animation-lookahead-max", "animation-debug-slowmo",
+                "animation-debug-probe", "delete-shaders-on-start"
+            )
+            for (sKey in shaderKeys) {
+                if (yaml[sKey] != null) {
+                    if (shaderYaml?.get(sKey) != null) {
+                        warn("Shader setting '$sKey' was found in config.yml, but shader.yml takes precedence. Please configure it in shader.yml.")
+                    } else {
+                        warn("Shader setting '$sKey' in config.yml is deprecated and will be read from config.yml; please move it to shader.yml.")
+                    }
+                }
+            }
+
             fun getShaderSetting(key: String) = shaderYaml?.get(key) ?: yaml[key]
 
-            animationLookaheadMax = (getShaderSetting("animation-lookahead-max")?.asInt() ?: 5).coerceIn(0, 20)
-            animationDebugSlowmo = (getShaderSetting("animation-debug-slowmo")?.asDouble() ?: 1.0).coerceIn(0.01, 10.0)
+            val rawLookahead = getShaderSetting("animation-lookahead-max")?.asInt()
+            if (rawLookahead != null && (rawLookahead < 0 || rawLookahead > 20)) {
+                warn("animation-lookahead-max value $rawLookahead is out of range [0, 20]; clamping to ${rawLookahead.coerceIn(0, 20)}")
+            }
+            animationLookaheadMax = (rawLookahead ?: 5).coerceIn(0, 20)
+
+            val rawSlowmo = getShaderSetting("animation-debug-slowmo")?.asDouble()
+            if (rawSlowmo != null && (rawSlowmo < 0.01 || rawSlowmo > 10.0)) {
+                warn("animation-debug-slowmo value $rawSlowmo is out of range [0.01, 10.0]; clamping to ${rawSlowmo.coerceIn(0.01, 10.0)}")
+            }
+            animationDebugSlowmo = (rawSlowmo ?: 1.0).coerceIn(0.01, 10.0)
+
             animationDebugProbe = getShaderSetting("animation-debug-probe")?.asBoolean() ?: false
             deleteShadersOnStart = getShaderSetting("delete-shaders-on-start")?.asBoolean() ?: true
-            getShaderSetting("text-client-mode")?.asString()?.let {
+            textClientMode = getShaderSetting("text-client-mode")?.asString()?.let { str ->
                 runCatching {
-                    textClientMode = TextClientMode.valueOf(it.uppercase())
-                }.handleFailure {
-                    "Unable to read text-client-mode: $it"
+                    TextClientMode.valueOf(str.uppercase())
+                }.getOrElse {
+                    warn("Unable to read text-client-mode '$str'; falling back to EXACT")
+                    TextClientMode.EXACT
                 }
-            } ?: run {
-                textClientMode = TextClientMode.EXACT
-            }
-            getShaderSetting("text-shadow-mode")?.asString()?.let {
+            } ?: TextClientMode.EXACT
+
+            textShadowMode = getShaderSetting("text-shadow-mode")?.asString()?.let { str ->
                 runCatching {
-                    textShadowMode = TextShadowMode.valueOf(it.uppercase())
-                }.handleFailure {
-                    "Unable to read text-shadow-mode: $it"
+                    TextShadowMode.valueOf(str.uppercase())
+                }.getOrElse {
+                    warn("Unable to read text-shadow-mode '$str'; falling back to DUAL")
+                    TextShadowMode.DUAL
                 }
-            } ?: run {
-                textShadowMode = TextShadowMode.DUAL
-            }
-            getShaderSetting("text-shadow-fallback")?.asString()?.let {
+            } ?: TextShadowMode.DUAL
+
+            textShadowFallback = getShaderSetting("text-shadow-fallback")?.asString()?.let { str ->
                 runCatching {
-                    textShadowFallback = TextShadowFallback.valueOf(it.uppercase())
-                }.handleFailure {
-                    "Unable to read text-shadow-fallback: $it"
+                    TextShadowFallback.valueOf(str.uppercase())
+                }.getOrElse {
+                    warn("Unable to read text-shadow-fallback '$str'; falling back to EXACT")
+                    TextShadowFallback.EXACT
                 }
-            } ?: run {
-                textShadowFallback = TextShadowFallback.EXACT
-            }
-            getShaderSetting("animation-mode")?.asString()?.let {
+            } ?: TextShadowFallback.EXACT
+
+            animationMode = getShaderSetting("animation-mode")?.asString()?.let { str ->
                 runCatching {
-                    animationMode = AnimationMode.valueOf(it.uppercase())
-                }.handleFailure {
-                    "Unable to read animation-mode: $it"
+                    AnimationMode.valueOf(str.uppercase())
+                }.getOrElse {
+                    warn("Unable to read animation-mode '$str'; falling back to SERVER")
+                    AnimationMode.SERVER
                 }
-            } ?: run {
-                animationMode = AnimationMode.SERVER
-            }
+            } ?: AnimationMode.SERVER
         }.handleFailure {
             "Unable to load config.yml"
         }

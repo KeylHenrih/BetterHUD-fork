@@ -1736,4 +1736,175 @@ class ClientAnimationTest {
         // 2,000 cached lookups should execute in well under 15ms (typically < 2ms)
         assertTrue(elapsedMs < 100.0, "2,000 cached evaluations took ${elapsedMs}ms, must be < 100ms")
     }
+
+    @Test
+    fun testShaderConfigMigrationAndValidation() {
+        val warnings = mutableListOf<String>()
+        val mockLogger = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudLogger::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudLogger::class.java)
+        ) { _, method, args ->
+            if (method.name == "warn") {
+                val arr = args?.get(0)
+                if (arr is Array<*>) {
+                    warnings.addAll(arr.filterIsInstance<String>())
+                }
+            }
+            null
+        } as kr.toxicity.hud.api.BetterHudLogger
+
+        val tempDir = File("build/tmp/test-config-migration").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+
+        val mockVolatile = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java)
+        ) { _, _, _ -> null } as kr.toxicity.hud.api.volatilecode.VolatileCodeHandler
+
+        val mockBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "logger" -> mockLogger
+                "volatileCode" -> mockVolatile
+                "dataFolder" -> tempDir
+                "version" -> "2.2.0-fork.1"
+                "resource" -> {
+                    val name = args[0] as String
+                    val file = File("../common-resources", name).takeIf { it.exists() } ?: File("common-resources", name)
+                    file.takeIf { it.exists() }?.inputStream()
+                }
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+
+        val mockHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> mockBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+
+        val mainField = kr.toxicity.hud.api.BetterHudAPI::class.java.getDeclaredField("main")
+        mainField.isAccessible = true
+        mainField.set(null, mockHud)
+
+        // Scenario D: Invalid values: banana, -3 lookahead, 0 slowmo
+        // Pre-set animationMode to CLIENT so we can verify if 'banana' correctly resets it to SERVER
+        val modeField = ConfigManagerImpl::class.java.getDeclaredField("animationMode")
+        modeField.isAccessible = true
+        modeField.set(ConfigManagerImpl, AnimationMode.CLIENT)
+
+        File(tempDir, "config.yml").writeText("animation-mode: banana\n")
+        File(tempDir, "shader.yml").writeText(
+            """
+            animation-mode: banana
+            text-client-mode: invalid_mode
+            text-shadow-mode: invalid_shadow
+            text-shadow-fallback: invalid_fallback
+            animation-lookahead-max: -3
+            animation-debug-slowmo: 0
+            """.trimIndent()
+        )
+
+        ConfigManagerImpl.preReload()
+
+        // 1. Invalid animation-mode must fall back to SERVER, not stay as CLIENT
+        assertEquals(AnimationMode.SERVER, ConfigManagerImpl.animationMode, "Invalid animation-mode must safely reset to SERVER")
+
+        // 2. Out-of-bounds numbers must be clamped safely
+        assertEquals(0, ConfigManagerImpl.animationLookaheadMax, "Negative lookahead must be clamped to 0")
+        assertEquals(0.01, ConfigManagerImpl.animationDebugSlowmo, "Zero slowmo must be clamped to 0.01")
+
+        // 3. Warnings must be recorded for each invalid / out-of-range value
+        assertTrue(warnings.any { it.contains("animation-mode") && it.contains("banana") }, "Warning must be logged for banana animation-mode")
+        assertTrue(warnings.any { it.contains("animation-lookahead-max") && it.contains("-3") }, "Warning must be logged for -3 lookahead")
+        assertTrue(warnings.any { it.contains("animation-debug-slowmo") }, "Warning must be logged for 0 slowmo")
+
+        // Scenario C: shader key in config.yml deprecated warning
+        assertTrue(warnings.any { it.contains("config.yml") && it.contains("animation-mode") }, "Warning must be logged for shader settings found in config.yml")
+
+        // Scenario A: Clean server without shader.yml
+        val cleanDir = File("build/tmp/test-config-clean").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val cleanBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "logger" -> mockLogger
+                "volatileCode" -> mockVolatile
+                "dataFolder" -> cleanDir
+                "version" -> "2.2.0-fork.1"
+                "resource" -> {
+                    val name = args[0] as String
+                    val file = File("../common-resources", name).takeIf { it.exists() } ?: File("common-resources", name)
+                    file.takeIf { it.exists() }?.inputStream()
+                }
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+        val cleanHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> cleanBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+        mainField.set(null, cleanHud)
+
+        ConfigManagerImpl.preReload()
+        assertTrue(File(cleanDir, "shader.yml").exists(), "Clean server must auto-generate shader.yml from template")
+        assertEquals(AnimationMode.CLIENT, ConfigManagerImpl.animationMode, "Clean server must load template default animation-mode CLIENT")
+
+        // Scenario B: Upstream shader.yml without new animation keys
+        val upstreamDir = File("build/tmp/test-config-upstream").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        File(upstreamDir, "shader.yml").writeText("bar-color: yellow\ndisable-level-text: false\n")
+        val upstreamBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "logger" -> mockLogger
+                "volatileCode" -> mockVolatile
+                "dataFolder" -> upstreamDir
+                "version" -> "2.2.0-fork.1"
+                "resource" -> {
+                    val name = args[0] as String
+                    val file = File("../common-resources", name).takeIf { it.exists() } ?: File("common-resources", name)
+                    file.takeIf { it.exists() }?.inputStream()
+                }
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+        val upstreamHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> upstreamBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+        mainField.set(null, upstreamHud)
+
+        ConfigManagerImpl.preReload()
+        // Template merge retains user's bar-color while providing default animation keys safely
+        assertTrue(File(upstreamDir, "shader.yml").readText().contains("bar-color: yellow"), "User settings must not be overwritten")
+        assertEquals(5, ConfigManagerImpl.animationLookaheadMax)
+        assertEquals(1.0, ConfigManagerImpl.animationDebugSlowmo)
+    }
 }
