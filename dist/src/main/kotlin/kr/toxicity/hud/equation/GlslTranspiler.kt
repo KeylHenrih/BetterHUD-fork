@@ -72,7 +72,7 @@ object GlslTranspiler {
                                 "-" -> stack.push("($left - $right)")
                                 "*" -> stack.push("($left * $right)")
                                 "/" -> stack.push("($left / (abs($right) < 1e-6 ? 1e-6 : ($right)))")
-                                "%" -> stack.push("jmod($left, $right)")
+                                "%" -> stack.push("($left - $right * trunc($left / (abs($right) < 1e-6 ? 1e-6 : ($right))))")
                                 "^" -> stack.push("pow(max(0.0, $left), $right)")
                                 else -> throw IllegalArgumentException("Unsupported binary operator in GLSL: ${op.symbol}")
                             }

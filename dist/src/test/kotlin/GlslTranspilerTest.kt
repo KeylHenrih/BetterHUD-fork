@@ -60,4 +60,16 @@ class GlslTranspilerTest {
             assertTrue(diff < 1e-4, "Mismatch at t=$t: expected $expected, got $actual, diff $diff")
         }
     }
+
+    @Test
+    fun testTruncatedModuloEquivalence() {
+        val teq = TEquation("t % 3")
+        // exp4j in Java: -5.0 % 3.0 == -2.0
+        val exp4jVal = teq.evaluate(-5.0)
+        assertEquals(-2.0, exp4jVal, "exp4j % must evaluate to truncated modulo -2.0")
+
+        val glsl = GlslTranspiler.transpile("t % 3")
+        // GLSL transpile must generate truncated modulo, not floored jmod
+        assertTrue(glsl.contains("trunc"), "GLSL % must transpile to truncated modulo using trunc(), not floored mod")
+    }
 }
