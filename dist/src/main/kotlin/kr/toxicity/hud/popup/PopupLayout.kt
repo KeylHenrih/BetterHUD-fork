@@ -105,14 +105,19 @@ class PopupLayout(
                     it(player)
                 }
                 val effectiveClientAnim = if (enableClientAnimation) layout.animation.clientAnimation else null
-                val tStartByte = if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
+                Runner {
                     val baseTick = iterator?.spawnTime?.takeIf { it > 0L } ?: player.worldTime()
+                    val currentElapsed = (player.worldTime() - baseTick).toInt()
+                    val safeWindow = layoutM - kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadMax
+                    if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && currentElapsed >= safeWindow) {
+                        return@Runner EMPTY_WIDTH_COMPONENT
+                    }
                     val lookahead = (player.ping() / 100.0).roundToInt().coerceIn(0, kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadMax)
                     val startTick = baseTick + lookahead
-                    ((startTick % layoutM).toInt()).coerceIn(0, layoutM - 1)
-                } else null
-                val tColor = tStartByte?.let { net.kyori.adventure.text.format.TextColor.color(it, 0, 0) }
-                Runner {
+                    val tStartByte = if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
+                        ((startTick % layoutM).toInt()).coerceIn(0, layoutM - 1)
+                    } else null
+                    val tColor = tStartByte?.let { net.kyori.adventure.text.format.TextColor.color(it, 0, 0) }
                     val frame = frameSupplier()
                     val finalImages = if (tColor != null) {
                         imageResult.mapIndexed { index, fn ->

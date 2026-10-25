@@ -1484,4 +1484,129 @@ class ClientAnimationTest {
         dummyPlayer.setPlayerAnimationMode(kr.toxicity.hud.animation.PlayerAnimationMode.CLIENT)
         assertFalse(dummyPlayer.isClientAnimationEnabled(), "Bedrock player with explicit CLIENT mode must NEVER enable client animation")
     }
+
+    @Test
+    fun testSharedModuloMBetweenImageAndTextInPopupLayout() {
+        val anim = ClientAnimation(
+            15,
+            "t",
+            "0",
+            "1",
+            AnimationType.PLAY_ONCE
+        )
+        val M = 30 // Divisor for requiredTicks <= 30
+        val gui = GuiLocation(0.0, 0.0)
+        val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
+
+        val imageShader = HudShader(
+            gui = gui,
+            renderScale = scale,
+            layer = 1,
+            outline = 0,
+            opacity = 1.0,
+            property = 0,
+            clientAnimation = anim,
+            isText = false,
+            moduloM = M
+        )
+
+        val textShader = HudShader(
+            gui = gui,
+            renderScale = scale,
+            layer = 1,
+            outline = 0,
+            opacity = 1.0,
+            property = 0,
+            clientAnimation = anim,
+            isText = true,
+            moduloM = M
+        )
+
+        val imageGlsl = ShaderManagerImpl.generateShaderLayout(mapOf(imageShader to emptyList())).joinToString("\n")
+        val textGlsl = ShaderManagerImpl.generateShaderLayout(mapOf(textShader to emptyList())).joinToString("\n")
+
+        // 1. Image shader must use M=30.0 in getElapsedTicks and tStart < 30.0
+        assertTrue(imageGlsl.contains("getElapsedTicks(tStart, GameTime * 24000.0, 30.0)"), "Image shader must use M=30 in getElapsedTicks: $imageGlsl")
+        assertTrue(imageGlsl.contains("if (tStart < 30.0)"), "Image shader must guard tStart < 30.0: $imageGlsl")
+        assertFalse(imageGlsl.contains("240.0"), "Image shader must not reference 240.0: $imageGlsl")
+
+        // 2. Text shader in dual mode must use M=30.0 for shadow and main text
+        assertTrue(textGlsl.contains("getElapsedTicks(tStart, GameTime * 24000.0, 30.0)"), "Text shader must use M=30 in getElapsedTicks: $textGlsl")
+        assertTrue(textGlsl.contains("actualA <= 30"), "Text shadow must check actualA <= 30: $textGlsl")
+        assertTrue(textGlsl.contains("actualA <= 60"), "Text main must check actualA <= 60: $textGlsl")
+        assertFalse(textGlsl.contains("240.0"), "Text shader must not reference 240.0: $textGlsl")
+
+        // 3. Mathematical parity of decoded tStart across image, text shadow, and text main
+        val startTick = 107L
+        val tStartByte = ((startTick % M).toInt()).coerceIn(0, M - 1) // 17
+        assertEquals(17, tStartByte)
+
+        // Image encodes tStartByte into Red
+        val imageDecodedTStart = tStartByte.toDouble()
+
+        // Text Dual mode encodes (tStartByte + 1) for shadow, (tStartByte + 1 + M) for main into Alpha
+        val shadowAlpha = tStartByte + 1 // 18
+        val mainAlpha = tStartByte + 1 + M // 48
+
+        val textShadowDecodedTStart = (shadowAlpha - 1).toDouble()
+        val textMainDecodedTStart = (mainAlpha - 1 - M).toDouble()
+
+        assertEquals(imageDecodedTStart, textShadowDecodedTStart, "Image and text shadow decoded tStart must be identical")
+        assertEquals(imageDecodedTStart, textMainDecodedTStart, "Image and text main decoded tStart must be identical")
+    }
+
+    @Test
+    fun testPopupLifeExtensionAndSafetyLatch() {
+        val anim = ClientAnimation(16, "45 * sin(t)", "-45 * sin(t)", "min(1, (max(0, 15 - t) / 9) ^ 2)", AnimationType.PLAY_ONCE)
+        val M = 30
+        val lookahead = 10
+        val safeWindow = M - lookahead // 20
+
+        // Test 1: Safety latch condition
+        fun isSafetyLatchTriggered(now: Long, spawn: Long, moduloM: Int, lookaheadMax: Int): Boolean {
+            val elapsed = (now - spawn).toInt()
+            return elapsed >= (moduloM - lookaheadMax)
+        }
+
+        val spawn = 100L
+        assertFalse(isSafetyLatchTriggered(105L, spawn, M, lookahead), "Playing animation at tick 105 must not trigger latch")
+        assertFalse(isSafetyLatchTriggered(119L, spawn, M, lookahead), "At tick 119 (elapsed 19 < safeWindow 20), must not trigger latch")
+        assertTrue(isSafetyLatchTriggered(120L, spawn, M, lookahead), "At tick 120 (elapsed 20 >= safeWindow 20), safety latch MUST trigger")
+        assertTrue(isSafetyLatchTriggered(125L, spawn, M, lookahead), "At tick 125 (elapsed 25 >= safeWindow 20), safety latch MUST trigger")
+
+        // Test 2: When life extension occurs at tick 115, resetSpawnTime resets spawnTime to 115
+        val iter = object : kr.toxicity.hud.api.popup.PopupIterator {
+            private var st = 100L
+            override fun getSpawnTime(): Long = st
+            override fun resetSpawnTime(spawnTime: Long) { st = spawnTime }
+            override fun parent(): kr.toxicity.hud.api.popup.Popup = throw UnsupportedOperationException()
+            override fun isUnique(): Boolean = true
+            override fun markedAsRemoval(): Boolean = false
+            override fun push(): Boolean = false
+            override fun getIndex(): Int = 0
+            override fun getMaxIndex(): Int = 0
+            override fun setIndex(index: Int) {}
+            override fun available(): Boolean = true
+            override fun getKey(): Any = "key"
+            override fun canSave(): Boolean = false
+            override fun alwaysCheckCondition(): Boolean = false
+            override fun next(): List<WidthComponent> = emptyList()
+            override fun remove() {}
+            override fun getPriority(): Int = 0
+            override fun setPriority(priority: Int) {}
+            override fun name(): String = "test"
+            override fun getUUID(): java.util.UUID = java.util.UUID.randomUUID()
+            override fun getSortType(): kr.toxicity.hud.api.popup.PopupSortType = kr.toxicity.hud.api.popup.PopupSortType.FIRST
+            override fun compareTo(other: kr.toxicity.hud.api.popup.PopupIterator): Int = 0
+        }
+
+        assertEquals(100L, iter.getSpawnTime())
+        // Simulate updater() resetting spawnTime
+        var currentTime = 115L
+        iter.resetSpawnTime(currentTime)
+        assertEquals(115L, iter.getSpawnTime(), "resetSpawnTime must update spawnTime on life extension")
+
+        // After reset at 115, at tick 120 (elapsed 5), latch does NOT trigger!
+        assertFalse(isSafetyLatchTriggered(120L, iter.getSpawnTime(), M, lookahead), "After reset, tick 120 is elapsed=5 and must not trigger latch")
+    }
 }

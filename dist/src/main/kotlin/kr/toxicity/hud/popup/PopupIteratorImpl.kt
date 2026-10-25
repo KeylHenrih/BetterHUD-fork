@@ -33,9 +33,12 @@ class PopupIteratorImpl(
     private var i = -1
     private var removal = false
     private val id = UUID.randomUUID()
-    private val spawnTime = player.worldTime()
+    private var spawnTime = player.worldTime()
 
     override fun getSpawnTime(): Long = spawnTime
+    override fun resetSpawnTime(spawnTime: Long) {
+        this.spawnTime = spawnTime
+    }
 
     private val valueMap = run {
         val newReason = PopupUpdateEvent(reason, this)

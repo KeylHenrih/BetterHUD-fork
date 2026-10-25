@@ -125,4 +125,11 @@ public interface PopupIterator extends Comparable<PopupIterator> {
     default long getSpawnTime() {
         return 0L;
     }
+
+    /**
+     * Resets the spawn time of this iterator to restart client-side animation.
+     * @param spawnTime new spawn time
+     */
+    default void resetSpawnTime(long spawnTime) {
+    }
 }

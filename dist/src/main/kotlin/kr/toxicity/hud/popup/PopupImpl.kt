@@ -93,12 +93,17 @@ class PopupImpl(
 
             val maxDuration = maxOf(clientAnim?.duration ?: 0, if (this@PopupImpl.duration > 0) this@PopupImpl.duration else 0)
             val lookahead = ConfigManagerImpl.animationLookaheadMax
+            val hasUnboundedDuration = clientAnim != null && clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && this@PopupImpl.duration <= 0
             val exceedsWindow = clientAnim != null && (maxDuration + lookahead > (240 - lookahead))
             val hasText = layoutObj.text.isNotEmpty()
             var layoutM = 240
-            var enableClient = clientAnim != null && !hasHead && !exceedsWindow
+            var enableClient = clientAnim != null && !hasHead && !exceedsWindow && !hasUnboundedDuration
 
-            if (hasHead && clientAnim != null) {
+            if (hasUnboundedDuration) {
+                val reason = "duration <= 0 (unbounded lifetime, fallback to server)"
+                warn("Popup '${this@PopupImpl.name}' layout '$layout' has no fixed duration (unbounded lifetime), forcing SERVER mode.")
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
+            } else if (hasHead && clientAnim != null) {
                 val reason = "head not supported in client mode (fallback to server)"
                 warn("Popup '${this@PopupImpl.name}' layout '$layout' has heads, forcing SERVER mode.")
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
@@ -239,12 +244,14 @@ class PopupImpl(
         var cond = {
             buildCondition(player)
         }
+        var iteratorRef: kr.toxicity.hud.api.popup.PopupIterator? = null
         if (duration > 0) {
             val old = cond
             var i = 0
             val old2 = updater
             updater = {
                 i = 0
+                iteratorRef?.resetSpawnTime(player.worldTime())
                 old2()
             }
             cond = {
@@ -277,6 +284,7 @@ class PopupImpl(
             cond,
             remove0
         )
+        iteratorRef = iterator
         get.addIterator(iterator)
         return object : PopupUpdater {
             override fun update(): Boolean {
