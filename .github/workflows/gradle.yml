@@ -2,7 +2,9 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "main", "client-animations" ]
+  pull_request:
+    branches: [ "master", "main", "client-animations" ]
 
 permissions:
   contents: read
@@ -10,11 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      HANGAR_API_TOKEN: ${{ secrets.HANGAR_API_TOKEN }}
-      MODRINTH_API_TOKEN: ${{ secrets.MODRINTH_API_TOKEN }}
-      BUILD_NUMBER: ${{ github.run_number }}
-      COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
     steps:
     - uses: actions/checkout@v7
     - name: Set up JDK 25
@@ -22,11 +19,11 @@ jobs:
       with:
         java-version: '25'
         distribution: 'temurin'
+    - name: Install glslangValidator
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y glslang-tools
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build all file
-      run: ./gradlew build --stacktrace
-    - name: Publish to Modrinth
-      run: ./gradlew modrinthPublish --stacktrace
-    - name: Publish to Hangar
-      run: ./gradlew publishPluginPublicationToHangar --stacktrace
+    - name: Build and Test
+      run: ./gradlew build --stacktrace --no-daemon

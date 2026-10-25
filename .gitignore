@@ -1,8 +1,22 @@
 .gradle
 build/
+*.jar
 !gradle/wrapper/gradle-wrapper.jar
+!bootstrap/bukkit/shaded/GPSAPI-1.0.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+
+### Logs & Diagnostics ###
+*.log
+logs/
+screenshots/
+server-test/
+server-test*
+
+### Local & Working Directories ###
+tools/local/
+scripts/
+docs/client-anim/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -27,7 +41,7 @@ out/
 .sts4-cache
 bin/
 !**/src/main/**/bin/
-!**/src/test/**/bin/
+!**/src/test/**/out/
 
 ### NetBeans ###
 /nbproject/private/
@@ -41,6 +55,6 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-### Minecraft ###
+### Minecraft & Server Run ###
 /run
 /plugins
