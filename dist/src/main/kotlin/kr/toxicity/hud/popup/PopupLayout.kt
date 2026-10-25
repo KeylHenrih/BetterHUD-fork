@@ -1,9 +1,11 @@
 package kr.toxicity.hud.popup
 
 import com.google.gson.JsonArray
+import kr.toxicity.hud.animation.SequenceAnimation
 import kr.toxicity.hud.api.component.PixelComponent
 import kr.toxicity.hud.api.component.WidthComponent
 import kr.toxicity.hud.api.player.HudPlayer
+import kr.toxicity.hud.api.update.PopupUpdateEvent
 import kr.toxicity.hud.api.update.UpdateEvent
 import kr.toxicity.hud.component.LayoutComponentContainer
 import kr.toxicity.hud.element.ImageElement
@@ -26,6 +28,8 @@ import kr.toxicity.hud.renderer.TextRenderer
 import kr.toxicity.hud.shader.HudShader
 import kr.toxicity.hud.text.BackgroundKey
 import kr.toxicity.hud.text.HudTextData
+import kr.toxicity.hud.text.applyClientExact
+import kr.toxicity.hud.text.applyClientExactDual
 import kr.toxicity.hud.util.*
 import net.kyori.adventure.text.Component
 import kotlin.math.roundToInt
@@ -37,7 +41,9 @@ class PopupLayout(
     private val parent: PopupImpl,
     private val globalLocation: GuiLocation,
     private val globalPixel: PixelLocation,
-    private val file: List<String>
+    private val file: List<String>,
+    private val enableClientAnimation: Boolean = true,
+    private val layoutM: Int = 240
 ) {
     private var textIndex = 0
 
@@ -84,19 +90,64 @@ class PopupLayout(
         private val elementPixel = globalPixel + location
 
         fun getComponent(reason: UpdateEvent, frameSupplier: () -> Long): (HudPlayer) -> Runner<WidthComponent> {
-            val providers = renderers.map {
+            val imageProviders = image.map {
                 it.render(reason)
             }
+            val otherProviders = (texts + heads).map {
+                it.render(reason)
+            }
+            val iterator = (reason as? PopupUpdateEvent)?.iterator()
             return { player ->
-                val result = providers.map {
+                val imageResult = imageProviders.map {
                     it(player)
                 }
+                val otherResult = otherProviders.map {
+                    it(player)
+                }
+                val effectiveClientAnim = if (enableClientAnimation) layout.animation.clientAnimation else null
+                val tStartByte = if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
+                    val baseTick = iterator?.spawnTime?.takeIf { it > 0L } ?: player.worldTime()
+                    val lookahead = (player.ping() / 100.0).roundToInt().coerceIn(0, kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadMax)
+                    val startTick = baseTick + lookahead
+                    ((startTick % layoutM).toInt()).coerceIn(0, layoutM - 1)
+                } else null
+                val tColor = tStartByte?.let { net.kyori.adventure.text.format.TextColor.color(it, 0, 0) }
                 Runner {
                     val frame = frameSupplier()
+                    val finalImages = if (tColor != null) {
+                        imageResult.mapIndexed { index, fn ->
+                            val pixelComp = fn(frame)
+                            if (image[index].source.listenerAnimation != null) {
+                                pixelComp
+                            } else {
+                                val base = pixelComp.component
+                                PixelComponent(
+                                    WidthComponent(
+                                        base.component.build().toBuilder().color(tColor),
+                                        base.width
+                                    ),
+                                    pixelComp.pixel
+                                )
+                            }
+                        }
+                    } else {
+                        imageResult.map { it(frame) }
+                    }
+                    val isProbe = parent.name.startsWith("debug_probe") || layout.id.startsWith("debug-probe")
+                    val finalOthers = if (tStartByte != null && !isProbe) {
+                        otherResult.map { fn ->
+                            val pixelComp = fn(frame)
+                            if (kr.toxicity.hud.manager.ConfigManagerImpl.textShadowMode == kr.toxicity.hud.manager.ConfigManagerImpl.TextShadowMode.DUAL && layoutM <= 120) {
+                                pixelComp.applyClientExactDual(tStartByte, layoutM)
+                            } else {
+                                pixelComp.applyClientExact(tStartByte)
+                            }
+                        }
+                    } else {
+                        otherResult.map { it(frame) }
+                    }
                     LayoutComponentContainer(layout.offset, layout.align, max)
-                        .append(result.map {
-                            it(frame)
-                        })
+                        .append(finalImages + finalOthers)
                         .build()
                 }
             }
@@ -104,29 +155,38 @@ class PopupLayout(
 
         val image = layout.image.map { target ->
             val pixel = elementPixel + pair.pixel + target.location
+            val effectiveClientAnim = if (enableClientAnimation) layout.animation.clientAnimation else null
             val imageShader = HudShader(
                 elementGui,
                 target.renderScale + pair.pixel + target.location,
                 target.layer,
                 target.outline,
                 pixel.opacity,
-                target.property
+                target.property,
+                effectiveClientAnim,
+                moduloM = layoutM
             )
             val negativeSpace = parent.getOrCreateSpace(-1)
 
+            val isClientSeq = target.source.isClientSequence
             fun ImageElement.toComponent(parentComponent: ImageComponent? = null): ImageComponent {
                 val list = ArrayList<PixelComponent>()
                 if (listener != null) list.add(EMPTY_PIXEL_COMPONENT)
-                image.forEach {
+                image.forEachIndexed { index, it ->
                     val fileName = "$NAME_SPACE_ENCODED:${it.name}"
 
                     val height = (it.image.image.height * target.scale * scale).roundToInt()
                     val scale = height.toDouble() / it.image.image.height
                     val xOffset = (it.image.xOffset * scale).roundToInt()
                     val ascent = pixel.y
-                    val component = image(target.identifier(imageShader, ascent, fileName)) {
+                    val seqAnim = if (isClientSeq) SequenceAnimation(index, image.size) else null
+                    val elementShader = imageShader.copy(
+                        listenerAnimation = listenerAnimation,
+                        sequenceAnimation = seqAnim
+                    )
+                    val component = image(target.identifier(elementShader, ascent, fileName)) {
                         val char = parent.newChar
-                        createAscent(imageShader, ascent) { y ->
+                        createAscent(elementShader, ascent) { y ->
                             array += jsonObjectOf(
                                 "type" to "bitmap",
                                 "file" to fileName,
@@ -167,13 +227,18 @@ class PopupLayout(
         val texts = layout.text.map { textLayout ->
             val pixel = textLayout.location + elementPixel + pair.pixel
             val render = textLayout.renderScale + elementPixel + pair.pixel
+            val effectiveClientAnim = if (enableClientAnimation) layout.animation.clientAnimation else null
             val textShader = HudShader(
                 elementGui,
                 render,
                 textLayout.layer,
                 textLayout.outline,
                 pixel.opacity,
-                textLayout.property
+                textLayout.property,
+                effectiveClientAnim,
+                isText = true,
+                isProbe = parent.name.startsWith("debug_probe") || layout.id.startsWith("debug-probe"),
+                moduloM = layoutM
             )
             val scaledMap = textLayout.source.charWidth.intEntries.associate { (k, v) ->
                 k to v * textLayout.scale
@@ -196,7 +261,7 @@ class PopupLayout(
                             )
                         }
                     }
-                    val textEncoded = "popup_${parent.name}_text_${globalIndex}_${index}_${lineIndex + 1}".encodeKey(EncodeManager.EncodeNamespace.FONT)
+                    val textEncoded = "popup_${parent.name}_text_${globalIndex}_${index}_${lineIndex + 1}${if (enableClientAnimation) "_client" else ""}".encodeKey(EncodeManager.EncodeNamespace.FONT)
                     val key = createAdventureKey(textEncoded)
                     var imageTextIndex = TEXT_IMAGE_START_CODEPOINT + scaledImageMap.size
                     scaledImageMap.forEach { (k, v) ->

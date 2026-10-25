@@ -1,5 +1,6 @@
 package kr.toxicity.hud.manager
 
+import kr.toxicity.hud.animation.EasingType
 import kr.toxicity.hud.api.manager.ShaderManager
 import kr.toxicity.hud.api.manager.ShaderManager.*
 import kr.toxicity.hud.api.plugin.ReloadInfo
@@ -25,15 +26,82 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         private set
 
     private val tagPattern = Pattern.compile("#(?<name>[a-zA-Z]+)")
-    private val tagBuilders: MutableMap<String, () -> List<String>> = mutableMapOf(
-        "CreateConstant" to {
+    internal val tagBuilders: MutableMap<String, (ShaderType) -> List<String>> = mutableMapOf(
+        "CreateConstant" to { _ ->
             constants.map {
                 "#define ${it.key} ${it.value}"
             }
         },
-        "CreateLayout" to {
+        "CreateLayout" to { _ ->
             compiledLayout
         },
+        "GenerateOtherDefinedMethod" to { type ->
+            when (type) {
+                ShaderType.TEXT_VERTEX -> {
+                    val slowmo = ConfigManagerImpl.animationDebugSlowmo
+                    val slowmoStr = if (slowmo != 1.0) " * ${slowmo.toFloat()}" else ""
+                    val base = listOf(
+                        "out vec2 hudFill;",
+                        "out vec2 hudQuadUV;",
+                        "float jmod(float x, float y) { return x - y * floor(x / y); }",
+                        "float getElapsedTicks(float tStart, float gameTimeTicks) {",
+                        "    return (jmod(gameTimeTicks - tStart + 10.0, 240.0) - 10.0)$slowmoStr;",
+                        "}",
+                        "float getElapsedTicks(float tStart, float gameTimeTicks, float M) {",
+                        "    return (jmod(gameTimeTicks - tStart + 10.0, M) - 10.0)$slowmoStr;",
+                        "}",
+                        "float easeLinear(float x) { return x; }",
+                        "float easeOutCubic(float x) { float f = x - 1.0; return f * f * f + 1.0; }",
+                        "float easeInOutCubic(float x) { if (x < 0.5) return 4.0 * x * x * x; float f = 2.0 * x - 2.0; return (x - 1.0) * f * f + 1.0; }",
+                        "float easeOutQuad(float x) { return x * (2.0 - x); }",
+                        "float easeInOutQuad(float x) { if (x < 0.5) return 2.0 * x * x; return -1.0 + (4.0 - 2.0 * x) * x; }",
+                        "float easeOutSine(float x) { return sin((x * 3.1415926535) / 2.0); }",
+                        "float easeInOutSine(float x) { return -(cos(3.1415926535 * x) - 1.0) / 2.0; }"
+                    )
+                    base
+                }
+                ShaderType.TEXT_FRAGMENT -> listOf(
+                    "in vec2 hudFill;",
+                    "in vec2 hudQuadUV;",
+                    "bool shouldDiscard(vec2 uv, float fill, int splitType) {",
+                    "    if (fill <= 0.0) return true;",
+                    "    if (fill >= 1.0) return false;",
+                    "    if (splitType == 0) return uv.x > fill;",
+                    "    if (splitType == 1) return uv.x < (1.0 - fill);",
+                    "    if (splitType == 2) return uv.y < (1.0 - fill);",
+                    "    if (splitType == 3) return uv.y > fill;",
+                    "    float PI = 3.1415926535;",
+                    "    float d = -(atan(uv.y - 0.5, uv.x - 0.5) + PI / 2.0);",
+                    "    if (splitType == 5) d = -d;",
+                    "    if (d < 0.0) d += 2.0 * PI;",
+                    "    if (d > 2.0 * PI) d -= 2.0 * PI;",
+                    "    return d > (fill * 2.0 * PI);",
+                    "}"
+                )
+            }
+        },
+        "GenerateOtherStartMethod" to { type ->
+            when (type) {
+                ShaderType.TEXT_VERTEX -> listOf(
+                    "hudFill = vec2(-1.0, -1.0);",
+                    "int hudCorner = int(gl_VertexID) & 3;",
+                    "hudQuadUV = vec2(float((hudCorner == 2 || hudCorner == 3) ? 1.0 : 0.0), float((hudCorner == 1 || hudCorner == 2) ? 1.0 : 0.0));"
+                )
+                ShaderType.TEXT_FRAGMENT -> emptyList()
+            }
+        },
+        "GenerateOtherMainMethod" to { type ->
+            when (type) {
+                ShaderType.TEXT_VERTEX -> emptyList()
+                ShaderType.TEXT_FRAGMENT -> listOf(
+                    "if (hudFill.x >= 0.0) {",
+                    "    if (shouldDiscard(hudQuadUV, hudFill.x, int(hudFill.y + 0.5))) {",
+                    "        discard;",
+                    "    }",
+                    "}"
+                )
+            }
+        }
     )
 
     private val hudShaders = TreeMap<HudShader, MutableList<(Int) -> Unit>>()
@@ -70,9 +138,39 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         shaderConstants[key] = value
     }
 
+    private fun backupAndClearShaders(shadersDir: File) {
+        if (!shadersDir.exists()) return
+        val parent = shadersDir.parentFile ?: return
+        val timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+        val backupDir = File(parent, "shaders.bak-$timestamp")
+        val renamed = shadersDir.renameTo(backupDir)
+        if (renamed) {
+            info("Backed up existing shaders/ to ${backupDir.name}")
+        } else {
+            shadersDir.deleteRecursively()
+        }
+        parent.listFiles()?.filter { it.isDirectory && it.name.startsWith("shaders.bak-") }
+            ?.sortedByDescending { it.name }
+            ?.drop(3)
+            ?.forEach { it.deleteRecursively() }
+    }
+
     override fun start() {
+        if (ConfigManagerImpl.deleteShadersOnStart) {
+            File(DATA_FOLDER, "shaders").let { shadersDir ->
+                backupAndClearShaders(shadersDir)
+            }
+        }
         ShaderType.entries.forEach {
             addTagSupplier(it, EMPTY_SUPPLIER)
+        }
+    }
+
+    override fun preReload() {
+        if (ConfigManagerImpl.deleteShadersOnStart) {
+            File(DATA_FOLDER, "shaders").let { shadersDir ->
+                backupAndClearShaders(shadersDir)
+            }
         }
     }
 
@@ -132,13 +230,150 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         }
     }
 
-    private fun compileShader(resource: GlobalResource) {
-        compiledLayout = hudShaders.entries.foldIndexed(arrayListOf()) { index, arr, entry ->
+    fun generateShaderLayout(shaders: Map<HudShader, List<(Int) -> Unit>>): List<String> {
+        return shaders.entries.foldIndexed(arrayListOf()) { index, arr, entry ->
             val shader = entry.key
             val id = index + 1
-            arr.add("case ${id}:")
+            arr.add("case ${id}: {")
             if (shader.property > 0) arr.add("    property = ${shader.property};")
             if (shader.opacity < 1.0) arr.add("    opacity = ${shader.opacity.toFloat()};")
+            val isProbe = shader.isProbe || (shader.isText && ConfigManagerImpl.animationDebugProbe)
+            if (isProbe) {
+                arr.addAll(kr.toxicity.hud.debug.DebugProbeHelper.generateProbeShaderCase())
+            } else {
+                val anim = shader.clientAnimation
+                val listenerAnim = shader.listenerAnimation
+                val hasPlayOnce = anim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE
+
+                if (anim != null) {
+                    if (hasPlayOnce) {
+                        if (shader.isText) {
+                            val M = shader.moduloM
+                            arr.add("    int actualA = int(round(Color.a * 255.0));")
+                            arr.add("    int actualR = int(round(Color.r * 255.0));")
+                            arr.add("    int actualG = int(round(Color.g * 255.0));")
+                            arr.add("    int actualB = int(round(Color.b * 255.0));")
+                            if (M <= 120) {
+                                arr.add("    if (actualA >= 1 && actualA <= $M) {")
+                                arr.add("        float tStart = float(actualA - 1);")
+                                arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0, ${M}.0);")
+                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                arr.add("        pos.xy -= vec2(1.0, 1.0);")
+                                if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
+                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                }
+                                if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
+                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                }
+                                if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
+                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                }
+                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("    } else if (actualA >= ${M + 1} && actualA <= ${2 * M}) {")
+                                arr.add("        float tStart = float(actualA - 1 - $M);")
+                                arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0, ${M}.0);")
+                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
+                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                }
+                                if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
+                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                }
+                                if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
+                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                }
+                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("    } else {")
+                                arr.add("        pos.xy = vec2(-10000.0);")
+                                arr.add("        vertexColor = vec4(0.0);")
+                                arr.add("        opacity = 0.0;")
+                                arr.add("    }")
+                            } else {
+                                arr.add("    if (actualA >= 1 && actualA <= 240) {")
+                                arr.add("        float tStart = float(actualA - 1);")
+                                arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0);")
+                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                arr.add("        pos.xy -= vec2(1.0, 1.0);")
+                                if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
+                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                }
+                                if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
+                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                }
+                                if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
+                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                }
+                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("    } else {")
+                                arr.add("        pos.xy = vec2(-10000.0);")
+                                arr.add("        vertexColor = vec4(0.0);")
+                                arr.add("        opacity = 0.0;")
+                                arr.add("    }")
+                            }
+                        } else {
+                            val M = shader.moduloM
+                            val elapsedCall = if (M == 240) "getElapsedTicks(tStart, GameTime * 24000.0)" else "getElapsedTicks(tStart, GameTime * 24000.0, ${M}.0)"
+                            arr.add("    float tStart = floor(Color.r * 255.0 + 0.5);")
+                            arr.add("    float elapsed = $elapsedCall;")
+                            arr.add("    if (tStart < ${M}.0) {")
+                            arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                            if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
+                                arr.add("        pos.x += (${anim.xGlsl});")
+                            }
+                            if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
+                                arr.add("        pos.y += (${anim.yGlsl});")
+                            }
+                            if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
+                                arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                            }
+                            arr.add("        vertexColor = vec4(1.0, 1.0, 1.0, 1.0);")
+                            arr.add("    }")
+                        }
+                    } else {
+                        arr.add("    float t = jmod(GameTime * 24000.0, ${anim.duration}.0);")
+                        if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
+                            arr.add("    pos.x += (${anim.xGlsl});")
+                        }
+                        if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
+                            arr.add("    pos.y += (${anim.yGlsl});")
+                        }
+                        if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
+                            arr.add("    opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                        }
+                    }
+                }
+                if (listenerAnim != null) {
+                    val dur = listenerAnim.duration
+                    val easeFunc = listenerAnim.easing.glslFunction
+                    if (!hasPlayOnce) {
+                        val elapsedCall = if (shader.moduloM == 240) "getElapsedTicks(tStart, GameTime * 24000.0)" else "getElapsedTicks(tStart, GameTime * 24000.0, ${shader.moduloM}.0)"
+                        arr.add("    float tStart = floor(Color.r * 255.0 + 0.5);")
+                        arr.add("    float elapsed = $elapsedCall;")
+                    }
+                    arr.add("    float fromVal = Color.g;")
+                    arr.add("    float toVal = Color.b;")
+                    if (dur > 0) {
+                        arr.add("    if (abs(fromVal - toVal) < 0.001) {")
+                        arr.add("        hudFill = vec2(clamp(toVal, 0.0, 1.0), ${listenerAnim.splitType.ordinal}.0);")
+                        arr.add("    } else {")
+                        arr.add("        float progress = clamp(elapsed / ${dur}.0, 0.0, 1.0);")
+                        arr.add("        float fill = clamp(fromVal + (toVal - fromVal) * $easeFunc(progress), 0.0, 1.0);")
+                        arr.add("        hudFill = vec2(fill, ${listenerAnim.splitType.ordinal}.0);")
+                        arr.add("    }")
+                    } else {
+                        arr.add("    hudFill = vec2(clamp(toVal, 0.0, 1.0), ${listenerAnim.splitType.ordinal}.0);")
+                    }
+                    arr.add("    vertexColor = vec4(1.0, 1.0, 1.0, 1.0);")
+                }
+                val seq = shader.sequenceAnimation
+                if (seq != null) {
+                    arr.add("    int activeFrame = int(jmod(GameTime * 24000.0, ${seq.totalFrames}.0));")
+                    arr.add("    if (${seq.frameIndex} != activeFrame) {")
+                    arr.add("        pos = vec3(-10000.0, -10000.0, -10000.0);")
+                    arr.add("        vertexColor = vec4(0.0);")
+                    arr.add("    }")
+                }
+            }
             val static = shader.renderScale.scale.staticScale
             fun applyScale(offset: Int, scale: Double, pos: String) {
                 if (scale != 1.0 || static) {
@@ -152,11 +387,16 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
             if (shader.gui.y != 0.0) arr.add("    yGui = ui.y * ${shader.gui.y.toFloat()} / 100.0;")
             if (shader.layer != 0) arr.add("    layer = ${shader.layer};")
             arr.add("    break;")
+            arr.add("}")
             entry.value.forEach {
                 it(id)
             }
             arr
         }
+    }
+
+    private fun compileShader(resource: GlobalResource) {
+        compiledLayout = ArrayList(generateShaderLayout(hudShaders))
         for (overlay in PackOverlay.entries) {
             loadShaders(overlay).forEach { (key, byte) ->
                 val path = resource.core + key
@@ -186,12 +426,16 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                     val tagMatcher = tagPattern.matcher(s)
                     if (tagMatcher.find()) {
                         val group = tagMatcher.group("name")
-                        (tagBuilders[group]?.invoke() ?: tagSupplier[group])?.let {
+                        val built = tagBuilders[group]?.invoke(key)
+                        val supplied = tagSupplier[group]
+                        val list = if (built != null && supplied != null) built + supplied else built ?: supplied
+                        list?.let {
                             it.forEach apply@ { methodString ->
-                                if (methodString.isEmpty() || methodString.startsWith("//")) return@apply
-                                val appendEnter = methodString.first() == '#'
+                                val trimmed = methodString.trim()
+                                if (trimmed.isEmpty() || trimmed.startsWith("//")) return@apply
+                                val appendEnter = trimmed.first() == '#'
                                 if (appendEnter && (isEmpty() || last() != '\n')) append('\n')
-                                append(methodString.replace("  ", ""))
+                                append(trimmed)
                                 if (appendEnter) append('\n')
                             }
                             return@write
