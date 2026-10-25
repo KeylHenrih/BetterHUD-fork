@@ -75,7 +75,10 @@ public class GpuShaderTest {
             uniform float GameTime;
             out vec3 outPos;
             out vec4 outColor;
-            float jmod(float x, float y) { return x - y * floor(x / y); }
+            float jmod(float x, float y) {
+                float m = x - y * floor(x / y);
+                return m >= y ? m - y : (m < 0.0 ? m + y : m);
+            }
             float getElapsedTicks(float tStart, float gameTimeTicks) {
                 return jmod(gameTimeTicks - tStart + 10.0, 240.0) - 10.0;
             }
@@ -539,6 +542,119 @@ public class GpuShaderTest {
         }
         System.out.printf("  -> Total GPU Quads Verified: %d (regular, italic, bold, bold+italic) across y in {0, 37, 200, -150} and multiple IDs%n", totalItalicQuads);
         System.out.println("  -> Position Discrepancy from Vanilla: 0.000000 pixels (100% BIT-FOR-BIT ACCURATE)\n");
+
+        // =========================================================================
+        // Test 5: Hardware GPU Verification of Floored Modulo Time across 24000 Wrap
+        // =========================================================================
+        System.out.println("[Test 5] Testing Floored Modulo Time across 24000 Wrap on Physical GPU...");
+        String timeVs = """
+            #version 330 core
+            layout (location = 0) in vec4 InParams; // x=tStart, y=gameTimeTicks, z=M, w=L
+            out float outElapsed;
+            float jmod(float x, float y) {
+                float m = x - y * floor(x / y);
+                return m >= y ? m - y : (m < 0.0 ? m + y : m);
+            }
+            float getElapsedTicks(float tStart, float gameTimeTicks, float M, float L) {
+                return jmod(gameTimeTicks - tStart + L, M) - L;
+            }
+            void main() {
+                outElapsed = getElapsedTicks(InParams.x, InParams.y, InParams.z, InParams.w);
+                gl_Position = vec4(outElapsed, 0.0, 0.0, 1.0);
+            }
+        """;
+
+        int timeShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(timeShader, timeVs);
+        glCompileShader(timeShader);
+        if (glGetShaderi(timeShader, GL_COMPILE_STATUS) == GL_FALSE) {
+            System.err.println("Time shader compilation failed: " + glGetShaderInfoLog(timeShader));
+            System.exit(1);
+        }
+
+        int timeProg = glCreateProgram();
+        glAttachShader(timeProg, timeShader);
+        glTransformFeedbackVaryings(timeProg, new CharSequence[]{"outElapsed"}, GL_INTERLEAVED_ATTRIBS);
+        glLinkProgram(timeProg);
+        if (glGetProgrami(timeProg, GL_LINK_STATUS) == GL_FALSE) {
+            System.err.println("Time program linking failed: " + glGetProgramInfoLog(timeProg));
+            System.exit(1);
+        }
+
+        int[] allDivisorsM = {20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120, 240};
+        float[] allLookaheadsL = {0.0f, 5.0f, 10.0f};
+
+        int totalTimeCases = 0;
+        for (int m : allDivisorsM) {
+            for (float l : allLookaheadsL) {
+                totalTimeCases += (int)(m); // from -L to M - L - 1 inclusive has m steps
+            }
+        }
+
+        FloatBuffer timeInBuffer = BufferUtils.createFloatBuffer(totalTimeCases * 4);
+        for (int m : allDivisorsM) {
+            float tStart = (float)(m - 1); // T close to M - 1
+            for (float l : allLookaheadsL) {
+                int minTick = (int)(-l);
+                int maxTick = (int)(m - l - 1);
+                for (int relTick = minTick; relTick <= maxTick; relTick++) {
+                    float worldTick = (float)(23999 + relTick);
+                    float gameTimeTicks = (float)(worldTick - 24000.0 * Math.floor(worldTick / 24000.0));
+                    timeInBuffer.put(new float[]{ tStart, gameTimeTicks, (float)m, l });
+                }
+            }
+        }
+        timeInBuffer.flip();
+
+        int inTimeVbo = glGenBuffers();
+        int tfTimeVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, inTimeVbo);
+        glBufferData(GL_ARRAY_BUFFER, timeInBuffer, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, tfTimeVbo);
+        glBufferData(GL_ARRAY_BUFFER, (long)totalTimeCases * Float.BYTES, GL_DYNAMIC_READ);
+
+        glUseProgram(timeProg);
+        glBindBuffer(GL_ARRAY_BUFFER, inTimeVbo);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 4, GL_FLOAT, false, 4 * Float.BYTES, 0);
+
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tfTimeVbo);
+        glEnable(GL_RASTERIZER_DISCARD);
+        glBeginTransformFeedback(GL_POINTS);
+        glDrawArrays(GL_POINTS, 0, totalTimeCases);
+        glEndTransformFeedback();
+        glDisable(GL_RASTERIZER_DISCARD);
+
+        FloatBuffer outTime = BufferUtils.createFloatBuffer(totalTimeCases);
+        glBindBuffer(GL_ARRAY_BUFFER, tfTimeVbo);
+        glGetBufferSubData(GL_ARRAY_BUFFER, 0, outTime);
+
+        int timeCheckIdx = 0;
+        for (int m : allDivisorsM) {
+            for (float l : allLookaheadsL) {
+                int minTick = (int)(-l);
+                int maxTick = (int)(m - l - 1);
+                float prevGpuElapsed = -999.0f;
+                for (int relTick = minTick; relTick <= maxTick; relTick++) {
+                    float gpuElapsed = outTime.get(timeCheckIdx++);
+                    assertEquals((float)relTick, gpuElapsed, 0.001f, "GPU Time Parity (M=" + m + ", L=" + l + ", relTick=" + relTick + ")");
+                    if (relTick > minTick) {
+                        if (gpuElapsed <= prevGpuElapsed) {
+                            System.err.printf("GPU Elapsed NOT strictly monotonic at M=%d, L=%.0f: prev=%.2f, curr=%.2f%n", m, l, prevGpuElapsed, gpuElapsed);
+                            System.exit(1);
+                        }
+                    }
+                    if (gpuElapsed < -l || gpuElapsed >= (float)m - l) {
+                        System.err.printf("GPU Elapsed out of bounds [-L, M-L) at M=%d, L=%.0f: val=%.2f%n", m, l, gpuElapsed);
+                        System.exit(1);
+                    }
+                    prevGpuElapsed = gpuElapsed;
+                }
+            }
+        }
+        System.out.printf("  -> Total GPU Time Test Cases: %d verified across all M in {20..240} and L in {0, 5, 10}%n", totalTimeCases);
+        System.out.println("  -> Elapsed Monotonicity & [-L, M-L) Bounds: 100% PASSED on Physical GPU\n");
 
         System.out.println("============================================================");
         System.out.println("  ALL HARDWARE GPU TRANSFORM FEEDBACK TESTS PASSED! (0 ERRORS)");

@@ -2028,4 +2028,50 @@ class ClientAnimationTest {
             }
         }
     }
+
+    @Test
+    fun testFlooredModuloTimeVsTruncatedModuloEquation() {
+        fun jmod(x: Double, y: Double): Double = x - y * kotlin.math.floor(x / y)
+        fun getElapsedTicks(tStart: Double, gameTimeTicks: Double, M: Double, L: Double): Double {
+            return jmod(gameTimeTicks - tStart + L, M) - L
+        }
+
+        val allM = listOf(20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120, 240)
+        val testL = listOf(0.0, 5.0, 10.0)
+
+        for (mInt in allM) {
+            val M = mInt.toDouble()
+            for (L in testL) {
+                // T is close to M - 1 (e.g. spawned right before day cycle wrap 24000)
+                val T = M - 1.0
+
+                // Client time immediately after 24000 wrap (now = 0, 1, 2...)
+                // Real tick progression starts at -L (before spawn) up to M - L - 1
+                var prevElapsed = -999.0
+                val minTick = (-L).toInt()
+                val maxTick = (M - L - 1).toInt()
+
+                for (relTick in minTick..maxTick) {
+                    // worldTick: starts at 23999 + relTick
+                    val worldTick = 23999.0 + relTick.toDouble()
+                    val gameTimeTicks = jmod(worldTick, 24000.0)
+
+                    val elapsed = getElapsedTicks(T, gameTimeTicks, M, L)
+
+                    // 1. Invariant: elapsed must match exact relative tick since spawn
+                    assertEquals(relTick.toDouble(), elapsed, 0.0001, "Elapsed must equal relative tick at M=$mInt, L=$L, relTick=$relTick")
+
+                    // 2. Invariant: elapsed in [-L, M - L)
+                    assertTrue(elapsed >= -L, "Elapsed must be >= -L ($elapsed >= -$L)")
+                    assertTrue(elapsed < M - L, "Elapsed must be < M - L ($elapsed < ${M - L})")
+
+                    // 3. Invariant: monotonic progression
+                    if (relTick > minTick) {
+                        assertTrue(elapsed > prevElapsed, "Elapsed must be strictly monotonic: prev=$prevElapsed, curr=$elapsed")
+                    }
+                    prevElapsed = elapsed
+                }
+            }
+        }
+    }
 }
