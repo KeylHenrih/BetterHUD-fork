@@ -31,18 +31,17 @@
 1. **GPU-Accelerated Client Animations (144+ FPS):**
    - Offloads element translation, alpha fading, and progress transitions to Minecraft Core Shaders (`text.vsh`, `text.fsh`).
    - Animations update on every display refresh frame using `GameTime`, bypassing the 20 Hz server tick limit.
-   - Eliminates per-tick packet spam, reducing HUD network traffic by over 95%.
 2. **Lossless 24-bit RGB Text Popups (`text-client-mode: exact`):**
-   - Transmits true 24-bit RGB colors ($16,777,216$ colors) to client vertex shaders with zero palette quantization error ($\Delta = 0$).
+   - Transmits true 24-bit RGB colors (16,777,216 colors) to client vertex shaders with zero palette quantization error.
    - Full support for MiniMessage hex colors, dynamic gradients, and animated placeholders.
 3. **Dual-Copy Exact Text Shadow Mode (`text-shadow-mode: dual`):**
    - Emits dual copies (shadow carrier layer + text carrier layer) to display both exact text color and exact shadow color.
    - Independent of OpenGL Z-buffer or depth testing; guarantees proper layering via 2D buffer submission order.
 4. **Dispatcher ID Separation:**
-   - Independent dispatcher IDs for client and server layouts ($2^{10} = 1024$ capacity, $< 6\%$ utilized).
+   - Independent dispatcher IDs for client and server layouts (capacity 1024, under 6% utilized).
    - Generates independent client font definitions (`_client.json`), allowing seamless per-player switching.
 5. **Per-Player Runtime Switching:**
-   - `/hud animation-mode <player|self> <client|server|auto>` allows players or admins to toggle animation modes instantly without restarting the server.
+   - `/hud animation-mode <player|self> <client|server|auto>` allows players or admins to toggle animation modes instantly without restarting the server (implemented, not verified in live client with multiple concurrent players).
    - Bedrock Edition players (via GeyserMC / Floodgate) automatically receive server-side rendering with zero setup.
 6. **Diagnostic & Debug Suite:**
    - `/hud debug-anim`: Live element inspect tree showing real-time client/server registration and modulus divisors.
@@ -69,7 +68,7 @@ Client shader parameters are configured in `plugins/BetterHud/shader.yml`:
 # Animation execution mode:
 # - client: offloads animations to client vertex shaders where supported.
 # - server: classic server-tick rendering (100% vanilla compatibility).
-# - hybrid: listener bars in client mode, remaining elements in server mode.
+# - hybrid: client animations for Java players and server fallback for Bedrock players (Floodgate/Geyser). Implemented, not verified with live Bedrock clients.
 animation-mode: client
 
 # Text rendering mode in client popups:
@@ -111,14 +110,14 @@ animation-debug-probe: false
 ## Known Limitations
 
 1. **Duration Limit for Text Shadow (`text-shadow-mode: dual`):**
-   - The dual-copy scheme utilizes alpha ranges $[1..M]$ (text) and $[M+1..2M]$ (shadow), requiring $2M \le 240 < 255$.
-   - The maximum duration for dual text shadow is $\sim 115$ ticks ($M \le 120$).
+   - The dual-copy scheme utilizes alpha ranges from 1 to M (text) and from M+1 to 2M (shadow), requiring: 2M no greater than 240 (strictly below 255).
+   - The maximum duration for dual text shadow is approximately 115 ticks (M no greater than 120).
    - Popups exceeding 115 ticks automatically fall back according to `text-shadow-fallback` (`exact` smooth client animation without shadow, or `server` 20 Hz rendering with shadow).
 2. **Text Formatting & Decorations:**
    - `bold` and `italic` are fully supported (italic shear displacement is compensated in vertex shaders).
-   - `underlined`, `strikethrough`, and `obfuscated` decorations create auxiliary Minecraft quads that are not collapsed by the carrier quad shader logic.
+   - `underlined`, `strikethrough`, and `obfuscated` decorations are not supported by the client pipeline: BetterHud's text splitter (`Component.split`) retains only `bold` and `italic`. Underline, strikethrough, and obfuscation are stripped during component creation (no visual artifacts, text renders without these line decorations).
 3. **Shadow Alpha Channel:**
-   - Minecraft's font renderer strips the alpha channel from text component colors ($A=255$ always). Only RGB of shadow colors is rendered; custom shadow alpha is ignored.
+   - Minecraft's font renderer strips the alpha channel from text component colors (alpha is always 255). Only RGB of shadow colors is rendered; custom shadow alpha is ignored.
 4. **Vertex Count Overhead:**
    - Dual text shadow mode emits two string copies per shadowed line, doubling vertex count for shadowed text popups.
 5. **Player Heads & Dynamic Skins:**
@@ -130,11 +129,11 @@ animation-debug-probe: false
 
 ## Administration Commands
 
-- `/hud animation-mode <player|self> <client|server|auto>`: Changes animation mode for a specific player without server reload.
+- `/hud animation-mode <player|self> <client|server|auto>`: Changes animation mode for a specific player without server reload (implemented, not verified in live client with multiple concurrent players).
   - `auto`: Uses client animations on Java Edition, falls back to server mode on Bedrock Edition.
   - `server`: Forces classic server-side rendering.
   - `client`: Enables GPU client-side rendering.
-- `/hud debug-anim`: Displays the real-time registry of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), and dual mode $M$ divisors.
+- `/hud debug-anim`: Displays the real-time registry of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), and dual mode M divisors.
 - `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup for visual inspection.
 
 ---
