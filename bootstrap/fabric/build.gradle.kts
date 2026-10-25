@@ -40,8 +40,8 @@ fabricModJson {
     name = rootProject.name
     version = project.version.toString()
     description = "A multiplatform server-side implementation of HUD in Minecraft."
-    authors.set(listOf(person("toxicity") {
-        contact.sources = "https://github.com/toxicity188/BetterHud"
+    authors.set(listOf(person("KeylHenrih") {
+        contact.sources = "https://github.com/KeylHenrih/BetterHUD-fork"
     }))
     license = listOf("MIT")
     environment = Environment.SERVER

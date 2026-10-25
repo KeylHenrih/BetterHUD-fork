@@ -10,9 +10,9 @@ velocityPluginJson {
     version = rootProject.version.toString()
     id = "betterhud"
     name = "BetterHud"
-    authors = listOf("toxicity")
-    description = "Make a hud in minecraft!"
-    url = "https://hangar.papermc.io/toxicity188/BetterHud"
+    authors = listOf("KeylHenrih")
+    description = "Make a hud in minecraft! (Client Animation Fork)"
+    url = "https://github.com/KeylHenrih/BetterHUD-fork"
 }
 
 dependencies {

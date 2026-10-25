@@ -61,10 +61,10 @@ bukkitPluginYaml {
     version = project.version.toString()
     name = rootProject.name
     apiVersion = "1.19"
-    author = "toxicity"
-    description = "A multiplatform server-side implementation of HUD in Minecraft."
+    author = "KeylHenrih"
+    description = "A multiplatform server-side implementation of HUD in Minecraft (Client Animation Fork)."
     foliaSupported = true
-    website = "https://www.spigotmc.org/resources/115559"
+    website = "https://github.com/KeylHenrih/BetterHUD-fork"
     softDepend = listOf(
         "MythicLib",
         "MythicMobs",
