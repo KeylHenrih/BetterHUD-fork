@@ -257,32 +257,44 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                                 arr.add("    if (actualA >= 1 && actualA <= $M) {")
                                 arr.add("        float tStart = float(actualA - 1);")
                                 arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0, ${M}.0);")
-                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
-                                arr.add("        pos.xy -= vec2(1.0, 1.0);")
+                                arr.add("        if (elapsed < 0.0) {")
+                                arr.add("            pos.xy = vec2(-10000.0);")
+                                arr.add("            vertexColor = vec4(0.0);")
+                                arr.add("            opacity = 0.0;")
+                                arr.add("        } else {")
+                                arr.add("            float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                arr.add("            pos.xy -= vec2(1.0, 1.0);")
                                 if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
-                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                    arr.add("            pos.x += (${anim.xGlsl});")
                                 }
                                 if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
-                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                    arr.add("            pos.y += (${anim.yGlsl});")
                                 }
                                 if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
-                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                    arr.add("            opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
                                 }
-                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("            vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("        }")
                                 arr.add("    } else if (actualA >= ${M + 1} && actualA <= ${2 * M}) {")
                                 arr.add("        float tStart = float(actualA - 1 - $M);")
                                 arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0, ${M}.0);")
-                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                arr.add("        if (elapsed < 0.0) {")
+                                arr.add("            pos.xy = vec2(-10000.0);")
+                                arr.add("            vertexColor = vec4(0.0);")
+                                arr.add("            opacity = 0.0;")
+                                arr.add("        } else {")
+                                arr.add("            float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
                                 if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
-                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                    arr.add("            pos.x += (${anim.xGlsl});")
                                 }
                                 if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
-                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                    arr.add("            pos.y += (${anim.yGlsl});")
                                 }
                                 if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
-                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                    arr.add("            opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
                                 }
-                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("            vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("        }")
                                 arr.add("    } else {")
                                 arr.add("        pos.xy = vec2(-10000.0);")
                                 arr.add("        vertexColor = vec4(0.0);")
@@ -292,18 +304,24 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                                 arr.add("    if (actualA >= 1 && actualA <= 240) {")
                                 arr.add("        float tStart = float(actualA - 1);")
                                 arr.add("        float elapsed = getElapsedTicks(tStart, GameTime * 24000.0);")
-                                arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
-                                arr.add("        pos.xy -= vec2(1.0, 1.0);")
+                                arr.add("        if (elapsed < 0.0) {")
+                                arr.add("            pos.xy = vec2(-10000.0);")
+                                arr.add("            vertexColor = vec4(0.0);")
+                                arr.add("            opacity = 0.0;")
+                                arr.add("        } else {")
+                                arr.add("            float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                                arr.add("            pos.xy -= vec2(1.0, 1.0);")
                                 if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
-                                    arr.add("        pos.x += (${anim.xGlsl});")
+                                    arr.add("            pos.x += (${anim.xGlsl});")
                                 }
                                 if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
-                                    arr.add("        pos.y += (${anim.yGlsl});")
+                                    arr.add("            pos.y += (${anim.yGlsl});")
                                 }
                                 if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
-                                    arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                    arr.add("            opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
                                 }
-                                arr.add("        vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("            vertexColor = vec4(float(actualR) / 255.0, float(actualG) / 255.0, float(actualB) / 255.0, 1.0);")
+                                arr.add("        }")
                                 arr.add("    } else {")
                                 arr.add("        pos.xy = vec2(-10000.0);")
                                 arr.add("        vertexColor = vec4(0.0);")
@@ -316,17 +334,23 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                             arr.add("    float tStart = floor(Color.r * 255.0 + 0.5);")
                             arr.add("    float elapsed = $elapsedCall;")
                             arr.add("    if (tStart < ${M}.0) {")
-                            arr.add("        float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
+                            arr.add("        if (elapsed < 0.0) {")
+                            arr.add("            pos.xy = vec2(-10000.0);")
+                            arr.add("            vertexColor = vec4(0.0);")
+                            arr.add("            opacity = 0.0;")
+                            arr.add("        } else {")
+                            arr.add("            float t = clamp(elapsed, 0.0, ${anim.duration}.0);")
                             if (anim.xGlsl != "0.0" && anim.xGlsl != "0") {
-                                arr.add("        pos.x += (${anim.xGlsl});")
+                                arr.add("            pos.x += (${anim.xGlsl});")
                             }
                             if (anim.yGlsl != "0.0" && anim.yGlsl != "0") {
-                                arr.add("        pos.y += (${anim.yGlsl});")
+                                arr.add("            pos.y += (${anim.yGlsl});")
                             }
                             if (anim.opacityGlsl != "1.0" && anim.opacityGlsl != "1") {
-                                arr.add("        opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
+                                arr.add("            opacity *= clamp(${anim.opacityGlsl}, 0.0, 1.0);")
                             }
-                            arr.add("        vertexColor = vec4(1.0, 1.0, 1.0, 1.0);")
+                            arr.add("            vertexColor = vec4(1.0, 1.0, 1.0, 1.0);")
+                            arr.add("        }")
                             arr.add("    }")
                         }
                     } else {

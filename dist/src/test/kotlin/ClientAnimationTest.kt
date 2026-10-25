@@ -1273,4 +1273,52 @@ class ClientAnimationTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testDamageIndicatorModuloAndCollapseOnElapsedNegative() {
+        // 1. Math verification: 16-tick popup with lookahead 5 requires M >= 30 (not 24)
+        val animDuration = 16
+        val popupDuration = 16
+        val lookahead = 5
+        val maxDuration = maxOf(animDuration, popupDuration)
+        val requiredTicks = maxDuration + maxOf(lookahead, 10) + 4 // 16 + 10 + 4 = 30
+        val divisorM = kr.toxicity.hud.text.getDivisorM(requiredTicks)
+        assertEquals(30, divisorM, "Divisor M for 16t popup must be 30 or larger to avoid wrapping before duration ends")
+
+        // 2. Wrap-around timing verification: M - L > duration
+        val L = 10.0
+        val positiveWindow = divisorM!!.toDouble() - L
+        assertTrue(positiveWindow >= animDuration + 4, "Positive window ($positiveWindow) must exceed duration ($animDuration) by safety margin")
+
+        // 3. GLSL verification: elapsed < 0.0 must collapse quad off-screen
+        val playOnceAnim = ClientAnimation(16, "45.0 * sin(t)", "-45.0 * sin(t)", "min(1.0, (max(0.0, 15.0 - t) / 9.0) ^ 2.0)", AnimationType.PLAY_ONCE)
+        val gui = GuiLocation(0.0, 0.0)
+        val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
+        val textShader = HudShader(gui, scale, 1, 0, 1.0, 0, playOnceAnim, null, isText = true, moduloM = 30)
+
+        val compiledLayout = ShaderManagerImpl.generateShaderLayout(mapOf(textShader to emptyList()))
+        val fullGlsl = compiledLayout.joinToString("\n")
+
+        assertTrue(fullGlsl.contains("if (elapsed < 0.0) {"), "Shader must check elapsed < 0.0")
+        assertTrue(fullGlsl.contains("pos.xy = vec2(-10000.0);"), "Shader must collapse quad off-screen when elapsed < 0.0")
+        assertTrue(fullGlsl.contains("opacity = 0.0;"), "Shader must zero out opacity when elapsed < 0.0")
+
+        // 4. Trace cyclic modulo across time: verify that elapsed is positive for entire animation and negative upon wrap
+        fun getElapsedTicks(tStart: Double, gameTimeTicks: Double, M: Double): Double {
+            fun jmod(x: Double, y: Double) = x - y * kotlin.math.floor(x / y)
+            return jmod(gameTimeTicks - tStart + 10.0, M) - 10.0
+        }
+
+        val tStart = 0.0
+        for (tick in 0..16) {
+            val elapsed = getElapsedTicks(tStart, tick.toDouble(), 30.0)
+            assertEquals(tick.toDouble(), elapsed, 1e-4, "Elapsed must be linear and positive during animation")
+            assertTrue(elapsed >= 0.0, "Elapsed must be >= 0.0 at tick $tick")
+        }
+
+        // At wrap-around point (tick 20)
+        val wrapElapsed = getElapsedTicks(tStart, 20.0, 30.0)
+        assertEquals(-10.0, wrapElapsed, 1e-4, "Wrap-around must jump to negative elapsed (-10.0)")
+        assertTrue(wrapElapsed < 0.0, "Wrap-around must produce negative elapsed so quad collapses off-screen")
+    }
 }

@@ -91,8 +91,9 @@ class PopupImpl(
             val hasHead = layoutObj.head.isNotEmpty()
             val pixel = yamlObject["pixel"]?.asObject()?.let { PixelLocation(it) } ?: PixelLocation.zero
 
+            val maxDuration = maxOf(clientAnim?.duration ?: 0, if (this@PopupImpl.duration > 0) this@PopupImpl.duration else 0)
             val lookahead = ConfigManagerImpl.animationLookaheadMax
-            val exceedsWindow = clientAnim != null && (clientAnim.duration + lookahead > (240 - lookahead))
+            val exceedsWindow = clientAnim != null && (maxDuration + lookahead > (240 - lookahead))
             val hasText = layoutObj.text.isNotEmpty()
             var layoutM = 240
             var enableClient = clientAnim != null && !hasHead && !exceedsWindow
@@ -102,12 +103,12 @@ class PopupImpl(
                 warn("Popup '${this@PopupImpl.name}' layout '$layout' has heads, forcing SERVER mode.")
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
             } else if (exceedsWindow) {
-                val reason = "duration (${clientAnim.duration}) exceeds safe time window (fallback to server)"
+                val reason = "duration ($maxDuration) exceeds safe time window (fallback to server)"
                 warn("Popup '${this@PopupImpl.name}' layout '$layout' duration exceeds safe window, forcing SERVER mode.")
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
             } else if (enableClient && clientAnim != null) {
                 if (clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
-                    val requiredTicks = clientAnim.duration + lookahead + 2
+                    val requiredTicks = maxDuration + maxOf(lookahead, 10) + 4
                     val divisorM = kr.toxicity.hud.text.getDivisorM(requiredTicks)
                     if (ConfigManagerImpl.textShadowMode == ConfigManagerImpl.TextShadowMode.DUAL && hasText) {
                         if (divisorM != null) {
@@ -116,8 +117,8 @@ class PopupImpl(
                         } else {
                             if (ConfigManagerImpl.textShadowFallback == ConfigManagerImpl.TextShadowFallback.SERVER) {
                                 enableClient = false
-                                warn("Popup '${this@PopupImpl.name}' layout '$layout' duration (${clientAnim.duration}) exceeds max shadow window M=120, forcing SERVER mode.")
-                                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, "duration (${clientAnim.duration}) exceeds max shadow window M=120 (fallback to server)")
+                                warn("Popup '${this@PopupImpl.name}' layout '$layout' duration ($maxDuration) exceeds max shadow window M=120, forcing SERVER mode.")
+                                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, "duration ($maxDuration) exceeds max shadow window M=120 (fallback to server)")
                             } else {
                                 layoutM = 240
                                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (exact single-copy, shadow fallback)")

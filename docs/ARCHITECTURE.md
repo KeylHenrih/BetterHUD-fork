@@ -146,7 +146,7 @@ To provide both exact 24-bit text color and exact 24-bit shadow color in client 
    - $A \in [1..M]$: Text layer ($T = A - 1$). Shader cancels vanilla shadow offset (`pos.xy -= vec2(1.0, 1.0)`).
    - $A \in [M+1..2M]$: Shadow layer ($T = A - 1 - M$). Shader retains vanilla $(+1, +1)$ offset.
    - $A == 255$ or $A == 0$ or $A > 2M$: Main quads & out-of-bounds collapse off-screen (`pos.xy = vec2(-10000.0)`).
-3. **Divisors of 24000:** $M \in \{1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120\}$ is selected per layout such that $M \ge \text{duration} + \text{lookaheadMax} + 2$. Because $M$ divides 24000, `mod(GameTime * 24000, M)` wraps smoothly across day boundaries without discontinuities.
+3. **Divisors of 24000:** $M \in \{1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120\}$ is selected per layout such that $M \ge \max(\text{animDuration}, \text{popupDuration}) + \max(L, 10) + 4$. This guarantees a positive window $M - L > \text{duration}$, preventing premature wrap-around. Furthermore, vertex shaders collapse quads off-screen when $\text{elapsed} < 0.0$, preventing any un-animated frame flash.
 4. **Buffer Order Invariant:** Because Copy 2 vertices are appended to `BufferBuilder` after Copy 1 vertices, Minecraft's 2D GUI pipeline renders Copy 2 strictly on top of Copy 1.
 5. **Single-Copy Optimization:** If no leaf node has shadow, BetterHud emits only 1 copy ($M = 240$), eliminating quad doubling for unshadowed text.
 6. **Fallback Policy (`text-shadow-fallback`):** When duration $> \sim 115$ ticks, layout gracefully uses `exact` (smooth text without shadow) or `server` (server-side rendering with shadow).
