@@ -35,6 +35,18 @@ object CommandManager : BetterHudManager {
     override val managerName: String = "Command"
     override val supportExternalPacks: Boolean = false
     private val heldPopups = java.util.concurrent.ConcurrentHashMap<java.util.UUID, java.util.concurrent.ConcurrentHashMap<String, kr.toxicity.hud.api.popup.PopupUpdater>>()
+    private var heldPopupsTask: kr.toxicity.hud.api.scheduler.HudTask? = null
+
+    fun clearHeldPopups() {
+        heldPopups.values.forEach { map ->
+            map.values.forEach { it.remove() }
+        }
+        heldPopups.clear()
+    }
+
+    fun clearHeldPopups(uuid: java.util.UUID) {
+        heldPopups.remove(uuid)?.values?.forEach { it.remove() }
+    }
 
     val library = BetterCommand(DATA_FOLDER.subFolder("lang").apply {
         PLUGIN.loadAssets("lang") { name, stream ->
@@ -229,7 +241,10 @@ object CommandManager : BetterHudManager {
                     val lastComp = impl?.getLastSentComponent()
                     if (lastComp != null) {
                         val json = GsonComponentSerializer.gson().serialize(lastComp)
-                        me.info("Last Sent Component (JSON): $json")
+                        val displayJson = if (json.length > 500) {
+                            "${json.take(500)}... (truncated, total: ${json.length} chars)"
+                        } else json
+                        me.info("Last Sent Component (JSON): $displayJson")
                     } else {
                         me.info("Last Sent Component: (none)")
                     }
@@ -715,11 +730,12 @@ object CommandManager : BetterHudManager {
 
 
     override fun start() {
-        asyncTaskTimer(10, 10) {
+        heldPopupsTask?.cancel()
+        heldPopupsTask = asyncTaskTimer(10, 10) {
             if (heldPopups.isNotEmpty()) {
                 heldPopups.forEach { (uuid, map) ->
                     if (PlayerManagerImpl.getHudPlayer(uuid) == null) {
-                        heldPopups.remove(uuid)
+                        clearHeldPopups(uuid)
                     } else {
                         map.values.removeIf { !it.update() }
                     }
@@ -729,13 +745,13 @@ object CommandManager : BetterHudManager {
     }
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
+        clearHeldPopups()
         library.reload()
     }
 
     override fun end() {
-        heldPopups.values.forEach { map ->
-            map.values.forEach { it.remove() }
-        }
-        heldPopups.clear()
+        heldPopupsTask?.cancel()
+        heldPopupsTask = null
+        clearHeldPopups()
     }
 }

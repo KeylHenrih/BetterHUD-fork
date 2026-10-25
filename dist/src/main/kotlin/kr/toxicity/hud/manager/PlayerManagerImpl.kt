@@ -45,6 +45,7 @@ object PlayerManagerImpl : BetterHudManager, PlayerManager {
     }
     fun removeHudPlayer(uuid: UUID) = playerMap.remove(uuid)?.apply {
         stringPlayer.remove(name())
+        CommandManager.clearHeldPopups(uuid)
     }
 
     override fun getAllHudPlayer(): Collection<HudPlayer> = Collections.unmodifiableCollection(playerMap.values)
