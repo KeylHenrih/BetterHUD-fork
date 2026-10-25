@@ -246,7 +246,7 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         arr.add("    // Reserved safe static fallback case for overflown layouts")
         arr.add("    break;")
         arr.add("}")
-        return shaders.entries.foldIndexed(arr) { index, list, entry ->
+        val result = shaders.entries.foldIndexed(arr) { index, list, entry ->
             val shader = entry.key
             val id = index + 1
             if (id > maxLayouts) {
@@ -436,6 +436,10 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
             }
             arr
         }
+        result.add("default: {")
+        result.add("    break;")
+        result.add("}")
+        return result
     }
 
     private fun compileShader(resource: GlobalResource) {

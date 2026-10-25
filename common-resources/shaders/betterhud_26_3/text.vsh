@@ -69,17 +69,17 @@ void main() {
             pos.x -= 0.5 * ui.x;
             pos.y -= (bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET;
 
-            float xGui = 0;
-            float yGui = 0;
-            float layer = 0;
-            float opacity = 1;
+            float xGui = 0.0;
+            float yGui = 0.0;
+            float layer = 0.0;
+            float opacity = 1.0;
             int property = 0;
 
             switch (id) {
                 #CreateLayout
             }
 
-            vertexColor *= vec4(1, 1, 1, opacity);
+            vertexColor *= vec4(1.0, 1.0, 1.0, opacity);
 
             //Wave
             if ((property & 1) > 0) {
