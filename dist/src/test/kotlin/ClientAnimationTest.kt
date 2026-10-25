@@ -22,6 +22,9 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
 import kr.toxicity.hud.util.applyColor
+import kr.toxicity.hud.util.HUD_DEFAULT_BIT
+import kr.toxicity.hud.util.HUD_MAX_BIT
+import kr.toxicity.hud.util.HUD_ADD_HEIGHT
 import java.io.File
 import kotlin.math.roundToInt
 import org.junit.jupiter.api.Assertions.*
@@ -1320,5 +1323,70 @@ class ClientAnimationTest {
         val wrapElapsed = getElapsedTicks(tStart, 20.0, 30.0)
         assertEquals(-10.0, wrapElapsed, 1e-4, "Wrap-around must jump to negative elapsed (-10.0)")
         assertTrue(wrapElapsed < 0.0, "Wrap-around must produce negative elapsed so quad collapses off-screen")
+    }
+
+    @Test
+    fun testItalicShearCompensationAcrossY() {
+        val defaultOffset = 10.0f
+        val uiX = 1920.0f
+        val xLayout = 100.0f
+        val heightBit = HUD_DEFAULT_BIT
+        val maxBit = HUD_MAX_BIT
+        val addOffset = HUD_ADD_HEIGHT.toFloat()
+
+        val testY = listOf(0, 37, 200, -150)
+        val testIds = listOf(1, 5, 42)
+
+        for (id in testIds) {
+            for (y in testY) {
+                val ascent = -(((id + (1 shl maxBit)) shl heightBit) + HUD_ADD_HEIGHT + y)
+
+                val glyphHeight = 8.0f
+                val up = 7.0f - ascent.toFloat()
+                val down = up + glyphHeight
+                val shearTop = 1.0f - 0.25f * up
+                val shearBottom = 1.0f - 0.25f * down
+
+                // Quad vertex 0 (Top-Left)
+                var posX0 = xLayout + 0.5f * uiX + shearTop
+                var posY0 = defaultOffset + up
+
+                // Quad vertex 1 (Bottom-Left)
+                var posX1 = xLayout + 0.5f * uiX + shearBottom
+                var posY1 = defaultOffset + down
+
+                // Quad vertex 2 (Bottom-Right)
+                val charWidth = 6.0f
+                var posX2 = xLayout + charWidth + 0.5f * uiX + shearBottom
+                var posY2 = defaultOffset + down
+
+                // Quad vertex 3 (Top-Right)
+                var posX3 = xLayout + charWidth + 0.5f * uiX + shearTop
+                var posY3 = defaultOffset + up
+
+                fun processShader(posX: Float, posY: Float, vid: Int): Float {
+                    var x = posX
+                    var y = posY
+                    val bit = y.toInt() shr heightBit
+                    if (x < -10000.0f) {
+                        val isBottom = if (vid == 1 || vid == 2) 1.0f else 0.0f
+                        x += 0.25f * (y - defaultOffset - isBottom * glyphHeight)
+                    }
+                    x -= 0.5f * uiX
+                    return x
+                }
+
+                val outX0 = processShader(posX0, posY0, 0)
+                val outX1 = processShader(posX1, posY1, 1)
+                val outX2 = processShader(posX2, posY2, 2)
+                val outX3 = processShader(posX3, posY3, 3)
+
+                // Expected vanilla Minecraft positions (with exact vanilla italic shear: top = +1.0, bottom = 1.0 - 0.25 * height = -1.0)
+                assertEquals(xLayout + 1.0f, outX0, 1e-3f, "Top-left vertex X must match xLayout + 1.0 for y=$y, id=$id")
+                assertEquals(xLayout - 1.0f, outX1, 1e-3f, "Bottom-left vertex X must match xLayout - 1.0 for y=$y, id=$id")
+                assertEquals(xLayout + charWidth - 1.0f, outX2, 1e-3f, "Bottom-right vertex X must match xLayout + width - 1.0 for y=$y, id=$id")
+                assertEquals(xLayout + charWidth + 1.0f, outX3, 1e-3f, "Top-right vertex X must match xLayout + width + 1.0 for y=$y, id=$id")
+            }
+        }
     }
 }

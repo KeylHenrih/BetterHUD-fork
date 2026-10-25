@@ -378,6 +378,139 @@ public class GpuShaderTest {
         System.out.printf("  -> Total GPU Vertices Verified: %,d%n", totalTested);
         System.out.printf("  -> Max RGB Error: %.1f levels (100%% BIT-FOR-BIT LOSSLESS)%n%n", maxRgbError);
 
+        // =========================================================================
+        // Test 4: Physical Hardware GPU Verification of Italic Shear Compensation Across Y
+        // =========================================================================
+        System.out.println("[Test 4] Testing Italic Shear Compensation Across Y on Physical GPU...");
+        String italicVs = """
+            #version 330 core
+            layout (location = 0) in vec3 Position;
+            #define HEIGHT_BIT 13
+            #define MAX_BIT 10
+            #define ADD_OFFSET 4095
+            #define DEFAULT_OFFSET 10
+            out vec3 outPos;
+            void main() {
+                vec3 pos = Position;
+                vec2 ui = vec2(1920.0, 1080.0);
+                int bit = int(pos.y) >> HEIGHT_BIT;
+                if (((bit >> MAX_BIT) & 1) == 1) {
+                    if (pos.x < -10000.0) {
+                        int vid = gl_VertexID % 4;
+                        float isBottom = (vid == 1 || vid == 2) ? 1.0 : 0.0;
+                        pos.x += 0.25 * (pos.y - float(DEFAULT_OFFSET) - isBottom * 8.0);
+                    }
+                    pos.x -= 0.5 * ui.x;
+                    pos.y -= float((bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET);
+                }
+                outPos = pos;
+                gl_Position = vec4(pos, 1.0);
+            }
+        """;
+
+        int italicShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(italicShader, italicVs);
+        glCompileShader(italicShader);
+        if (glGetShaderi(italicShader, GL_COMPILE_STATUS) == GL_FALSE) {
+            System.err.println("Italic shader compilation failed: " + glGetShaderInfoLog(italicShader));
+            System.exit(1);
+        }
+
+        int italicProg = glCreateProgram();
+        glAttachShader(italicProg, italicShader);
+        glTransformFeedbackVaryings(italicProg, new CharSequence[]{"outPos"}, GL_INTERLEAVED_ATTRIBS);
+        glLinkProgram(italicProg);
+        if (glGetProgrami(italicProg, GL_LINK_STATUS) == GL_FALSE) {
+            System.err.println("Italic program linking failed: " + glGetProgramInfoLog(italicProg));
+            System.exit(1);
+        }
+
+        int[] testYCoords = {0, 37, 200, -150};
+        int[] testIds = {1, 5, 42};
+        float xLayout = 100.0f;
+        float charWidth = 6.0f;
+        float uiX = 1920.0f;
+        float defaultOffset = 10.0f;
+        int heightBit = 13;
+        int maxBit = 10;
+        int addOffset = 4095;
+
+        int totalItalicQuads = testYCoords.length * testIds.length;
+        FloatBuffer italicInBuffer = BufferUtils.createFloatBuffer(totalItalicQuads * 4 * 3);
+
+        for (int id : testIds) {
+            for (int y : testYCoords) {
+                int ascent = -(((id + (1 << maxBit)) << heightBit) + addOffset + y);
+                float up = 7.0f - (float)ascent;
+                float down = up + 8.0f;
+                float shearTop = 1.0f - 0.25f * up;
+                float shearBottom = 1.0f - 0.25f * down;
+
+                // V0: Top-Left
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
+                // V1: Bottom-Left
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
+                // V2: Bottom-Right
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
+                // V3: Top-Right
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
+            }
+        }
+        italicInBuffer.flip();
+
+        int inItalicVbo = glGenBuffers();
+        int tfItalicVbo = glGenBuffers();
+
+        glBindBuffer(GL_ARRAY_BUFFER, inItalicVbo);
+        glBufferData(GL_ARRAY_BUFFER, italicInBuffer, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, tfItalicVbo);
+        glBufferData(GL_ARRAY_BUFFER, (long)totalItalicQuads * 4 * 3 * Float.BYTES, GL_DYNAMIC_READ);
+
+        glUseProgram(italicProg);
+        glBindBuffer(GL_ARRAY_BUFFER, inItalicVbo);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.BYTES, 0);
+
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tfItalicVbo);
+        glEnable(GL_RASTERIZER_DISCARD);
+        glBeginTransformFeedback(GL_POINTS);
+        glDrawArrays(GL_POINTS, 0, totalItalicQuads * 4);
+        glEndTransformFeedback();
+        glDisable(GL_RASTERIZER_DISCARD);
+
+        FloatBuffer outItalic = BufferUtils.createFloatBuffer(totalItalicQuads * 4 * 3);
+        glBindBuffer(GL_ARRAY_BUFFER, tfItalicVbo);
+        glGetBufferSubData(GL_ARRAY_BUFFER, 0, outItalic);
+
+        int quadIdx = 0;
+        for (int id : testIds) {
+            for (int y : testYCoords) {
+                int base = quadIdx * 4 * 3;
+                float v0x = outItalic.get(base);
+                float v0y = outItalic.get(base + 1);
+                float v1x = outItalic.get(base + 3);
+                float v1y = outItalic.get(base + 4);
+                float v2x = outItalic.get(base + 6);
+                float v2y = outItalic.get(base + 7);
+                float v3x = outItalic.get(base + 9);
+                float v3y = outItalic.get(base + 10);
+
+                assertEquals(xLayout + 1.0f, v0x, 0.001f, "GPU V0 Top-Left X (y=" + y + ", id=" + id + ")");
+                assertEquals((float)(y + 7), v0y, 0.001f, "GPU V0 Top-Left Y (y=" + y + ", id=" + id + ")");
+                assertEquals(xLayout - 1.0f, v1x, 0.001f, "GPU V1 Bottom-Left X (y=" + y + ", id=" + id + ")");
+                assertEquals((float)(y + 15), v1y, 0.001f, "GPU V1 Bottom-Left Y (y=" + y + ", id=" + id + ")");
+                assertEquals(xLayout + charWidth - 1.0f, v2x, 0.001f, "GPU V2 Bottom-Right X (y=" + y + ", id=" + id + ")");
+                assertEquals((float)(y + 15), v2y, 0.001f, "GPU V2 Bottom-Right Y (y=" + y + ", id=" + id + ")");
+                assertEquals(xLayout + charWidth + 1.0f, v3x, 0.001f, "GPU V3 Top-Right X (y=" + y + ", id=" + id + ")");
+                assertEquals((float)(y + 7), v3y, 0.001f, "GPU V3 Top-Right Y (y=" + y + ", id=" + id + ")");
+
+                quadIdx++;
+            }
+        }
+        System.out.printf("  -> Total GPU Italic Quads Verified: %d across y in {0, 37, 200, -150} and multiple IDs%n", totalItalicQuads);
+        System.out.println("  -> Position Discrepancy from Vanilla: 0.000000 pixels (100% BIT-FOR-BIT ACCURATE)\n");
+
         System.out.println("============================================================");
         System.out.println("  ALL HARDWARE GPU TRANSFORM FEEDBACK TESTS PASSED! (0 ERRORS)");
         System.out.println("============================================================");

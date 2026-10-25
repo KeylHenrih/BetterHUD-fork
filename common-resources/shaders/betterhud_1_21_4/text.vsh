@@ -56,7 +56,9 @@ void main() {
             int id = bit - (1 << MAX_BIT);
 
             if (pos.x < -10000.0) {
-                pos.x += 0.25 * float((bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET);
+                int vid = gl_VertexID % 4;
+                float isBottom = (vid == 1 || vid == 2) ? 1.0 : 0.0;
+                pos.x += 0.25 * (pos.y - float(DEFAULT_OFFSET) - isBottom * 8.0);
             }
 
             pos.x -= 0.5 * ui.x;
