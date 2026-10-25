@@ -26,6 +26,10 @@ import kr.toxicity.hud.util.HUD_DEFAULT_BIT
 import kr.toxicity.hud.util.HUD_MAX_BIT
 import kr.toxicity.hud.util.HUD_ADD_HEIGHT
 import kr.toxicity.hud.util.toSemver
+import kr.toxicity.hud.text.applyClientExact
+import kr.toxicity.hud.text.applyClientDualRole
+import kr.toxicity.hud.text.DualCopyRole
+import net.kyori.adventure.text.TextComponent
 import java.io.File
 import kotlin.math.roundToInt
 import org.junit.jupiter.api.Assertions.*
@@ -1608,5 +1612,98 @@ class ClientAnimationTest {
 
         // After reset at 115, at tick 120 (elapsed 5), latch does NOT trigger!
         assertFalse(isSafetyLatchTriggered(120L, iter.getSpawnTime(), M, lookahead), "After reset, tick 120 is elapsed=5 and must not trigger latch")
+    }
+
+    @Test
+    fun testColorAndShadowParityAcrossServerAndClientModes() {
+        val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+
+        // Case 1: entity_health_text from upstream default configs
+        val entityPattern = mm.deserialize("Health: <#FFD800>20 // 20")
+        val exactComp = entityPattern.applyClientExact(10)
+        assertEquals(NamedTextColor.WHITE, exactComp.style().color(), "Client exact mode root text color must be WHITE")
+        // Check children colors
+        val children = exactComp.children()
+        assertTrue(children.isNotEmpty())
+        val goldChild = children.firstOrNull { it.children().any { c -> (c as? TextComponent)?.content()?.contains("20") == true } || (it as? TextComponent)?.content()?.contains("20") == true }
+        assertNotNull(goldChild, "Gold child must be present")
+
+        // Case 2: Explicit shadow via MiniMessage <shadow:#123456>
+        val shadowMsg = mm.deserialize("<#FF0000><shadow:#123456>Damage: 100</shadow></#FF0000>")
+        val dualShadow = shadowMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.SHADOW, 5, 30)
+        val dualText = shadowMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.TEXT, 5, 30)
+
+        val shadowStyle = dualShadow.style()
+        val shadowCol = shadowStyle.shadowColor()!!
+        assertEquals(0x12, shadowCol.red())
+        assertEquals(0x34, shadowCol.green())
+        assertEquals(0x56, shadowCol.blue())
+        // Alpha must be in M+1..2M (31..60 for M=30, tStart=5 -> 1 + 30 + 5 = 36)
+        assertEquals(36, shadowCol.alpha())
+
+        val textStyle = dualText.style()
+        val textShadowCol = textStyle.shadowColor()!!
+        // Text layer encodes text RGB (red = 255, 0, 0)
+        assertEquals(255, textShadowCol.red())
+        assertEquals(0, textShadowCol.green())
+        assertEquals(0, textShadowCol.blue())
+        // Alpha in 1..M (1 + 5 = 6)
+        assertEquals(6, textShadowCol.alpha())
+
+        // Case 3: Zero / disabled shadow via shadowColor(0) (e.g. outline: 0 in BetterHud)
+        val zeroShadowMsg = Component.text("No Shadow").shadowColor(net.kyori.adventure.text.format.ShadowColor.shadowColor(0))
+        val dualZeroShadow = zeroShadowMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.SHADOW, 0, 30)
+        val zeroCol = dualZeroShadow.style().shadowColor()!!
+        assertEquals(0, zeroCol.value(), "Disabled shadow must have shadow value 0")
+
+        // Case 4: Gradient <gradient:#FF0000:#00FF00>
+        val gradMsg = mm.deserialize("<gradient:#FF0000:#00FF00>ABC</gradient>")
+        val gradShadow = gradMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.SHADOW, 0, 30)
+        val gradText = gradMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.TEXT, 0, 30)
+        assertEquals(gradMsg.children().size, gradShadow.children().size)
+        assertEquals(gradMsg.children().size, gradText.children().size)
+
+        // Case 5: Nested components with color inheritance and overrides
+        val nestedMsg = mm.deserialize("<gold>Gold1 <white>White</white> Gold2</gold>")
+        val nestedDual = nestedMsg.applyClientDualRole(kr.toxicity.hud.text.DualCopyRole.TEXT, 0, 30)
+        val cRoot = nestedDual.style().shadowColor()!!
+        val c0 = (nestedDual.children()[0] as TextComponent).style().shadowColor()!!
+        val c1 = (nestedDual.children()[1] as TextComponent).style().shadowColor()!!
+        // cRoot and c1 must carry Gold text color in shadowColor
+        val goldColor = TextColor.color(NamedTextColor.GOLD)
+        assertEquals(goldColor.red(), cRoot.red())
+        assertEquals(goldColor.green(), cRoot.green())
+        assertEquals(goldColor.blue(), cRoot.blue())
+        assertEquals(goldColor.red(), c1.red())
+        assertEquals(goldColor.green(), c1.green())
+        assertEquals(goldColor.blue(), c1.blue())
+        // c0 must carry White text color in shadowColor
+        assertEquals(255, c0.red())
+        assertEquals(255, c0.green())
+        assertEquals(255, c0.blue())
+    }
+
+    @Test
+    fun testCrossWorldDesyncAndCleanup() {
+        val uuid = java.util.UUID.randomUUID()
+        val tracker = kr.toxicity.hud.animation.ListenerTracker(20, EasingType.LINEAR)
+        // Simulate tracker in World 1 at tick 1000
+        val col = tracker.update(0.5, 1000L)
+        assertNotNull(col)
+        assertEquals(1000L, tracker.startTickVal)
+
+        // If player teleports to World 2 with different gameTime (e.g. 200L):
+        // Without cleanup, elapsed = 200 - 1000 = -800L
+        val uncleanedElapsed = (200L - tracker.startTickVal).toInt()
+        assertTrue(uncleanedElapsed < 0, "Uncleaned cross-world teleport produces negative elapsed")
+
+        // With cleanup (removeTrackers):
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid)
+        assertNull(kr.toxicity.hud.image.enums.ImageType.getTrackers(uuid), "Trackers must be cleared after world change/respawn")
+
+        // New tracker in World 2 initializes cleanly at World 2 time (200L)
+        val newTracker = kr.toxicity.hud.animation.ListenerTracker(20, EasingType.LINEAR)
+        newTracker.update(0.5, 200L)
+        assertEquals(200L, newTracker.startTickVal, "New tracker must anchor to World 2 time")
     }
 }

@@ -47,8 +47,10 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.HandlerList
 import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerChangedWorldEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.event.player.PlayerRespawnEvent
 import org.bukkit.event.server.ServerLoadEvent
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
@@ -225,6 +227,21 @@ class BukkitBootstrapImpl : BukkitBootstrap, JavaPlugin() {
                     asyncTask {
                         it.save()
                     }
+                }
+            }
+            @EventHandler
+            fun PlayerChangedWorldEvent.changeWorld() {
+                PlayerManagerImpl.getHudPlayer(player.uniqueId)?.let {
+                    kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uniqueId)
+                    it.popupGroupIteratorMap.values.forEach { group -> group.clear() }
+                    it.reload()
+                }
+            }
+            @EventHandler
+            fun PlayerRespawnEvent.respawn() {
+                PlayerManagerImpl.getHudPlayer(player.uniqueId)?.let {
+                    kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uniqueId)
+                    it.popupGroupIteratorMap.values.forEach { group -> group.clear() }
                 }
             }
         }, this)
