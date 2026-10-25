@@ -10,10 +10,17 @@ import kr.toxicity.hud.player.head.HeadRenderType.*
 import kr.toxicity.hud.renderer.HeadRenderer
 import kr.toxicity.hud.location.GuiLocation
 import kr.toxicity.hud.manager.EncodeManager
+import kr.toxicity.hud.animation.ClientAnimation
 import kr.toxicity.hud.shader.HudShader
 import kr.toxicity.hud.util.*
 
-class HudHeadParser(parent: HudImpl, private val head: HeadLayout, gui: GuiLocation, pixel: PixelLocation) : HudSubParser {
+class HudHeadParser(
+    parent: HudImpl,
+    private val head: HeadLayout,
+    gui: GuiLocation,
+    pixel: PixelLocation,
+    clientAnimation: ClientAnimation? = null
+) : HudSubParser {
 
     private val renderer = run {
         val final = head.location + pixel
@@ -24,7 +31,8 @@ class HudHeadParser(parent: HudImpl, private val head: HeadLayout, gui: GuiLocat
             head.layer,
             head.outline,
             final.opacity,
-            head.property
+            head.property,
+            clientAnimation
         )
         HeadRenderer(
             head,

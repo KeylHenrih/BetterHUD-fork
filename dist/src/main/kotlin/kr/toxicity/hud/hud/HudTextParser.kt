@@ -17,6 +17,7 @@ import kr.toxicity.hud.shader.HudShader
 import kr.toxicity.hud.text.BackgroundKey
 import kr.toxicity.hud.text.HudTextData
 import kr.toxicity.hud.util.*
+import kr.toxicity.hud.animation.ClientAnimation
 import net.kyori.adventure.text.Component
 import kotlin.math.roundToInt
 
@@ -26,7 +27,8 @@ class HudTextParser(
     resource: GlobalResource,
     private val text: TextLayout,
     gui: GuiLocation,
-    pixel: PixelLocation
+    pixel: PixelLocation,
+    clientAnimation: ClientAnimation? = null
 ) : HudSubParser {
 
     private val renderer = run {
@@ -38,7 +40,8 @@ class HudTextParser(
             text.layer,
             text.outline,
             loc.opacity,
-            text.property
+            text.property,
+            clientAnimation
         )
         val scaledMap = text.source.charWidth.intEntries.associate { (k, v) ->
             k to v * text.scale

@@ -12,10 +12,18 @@ import kr.toxicity.hud.renderer.ImageRenderer
 import kr.toxicity.hud.location.GuiLocation
 import kr.toxicity.hud.shader.HudShader
 import kr.toxicity.hud.util.*
+import kr.toxicity.hud.animation.ClientAnimation
+import kr.toxicity.hud.animation.SequenceAnimation
 import net.kyori.adventure.text.Component
 import kotlin.math.roundToInt
 
-class HudImageParser(parent: HudImpl, private val imageLayout: ImageLayout, gui: GuiLocation, pixel: PixelLocation) : HudSubParser {
+class HudImageParser(
+    parent: HudImpl,
+    private val imageLayout: ImageLayout,
+    gui: GuiLocation,
+    pixel: PixelLocation,
+    clientAnimation: ClientAnimation? = null
+) : HudSubParser {
 
     private val chars = run {
         val finalPixel = imageLayout.location + pixel
@@ -26,7 +34,8 @@ class HudImageParser(parent: HudImpl, private val imageLayout: ImageLayout, gui:
             imageLayout.layer,
             imageLayout.outline,
             finalPixel.opacity,
-            imageLayout.property
+            imageLayout.property,
+            clientAnimation
         )
         val negativeSpace = parent.getOrCreateSpace(-1)
         fun ImageElement.toComponent(parentComponent: ImageComponent? = null): ImageComponent {
@@ -34,12 +43,18 @@ class HudImageParser(parent: HudImpl, private val imageLayout: ImageLayout, gui:
             if (listener != null) {
                 list.add(EMPTY_PIXEL_COMPONENT)
             }
-            image.forEach { pair ->
+            val isClientSeq = isClientSequence
+            image.forEachIndexed { index, pair ->
+                val seqAnim = if (isClientSeq) SequenceAnimation(index, image.size) else null
+                val elementShader = shader.copy(
+                    listenerAnimation = listenerAnimation,
+                    sequenceAnimation = seqAnim
+                )
                 val fileName = "$NAME_SPACE_ENCODED:${pair.name}"
                 val height = (pair.image.image.height.toDouble() * imageLayout.scale * scale).roundToInt()
                 val scale = height.toDouble() / pair.image.image.height
                 val ascent = finalPixel.y.coerceAtLeast(-HUD_ADD_HEIGHT).coerceAtMost(HUD_ADD_HEIGHT)
-                val component = image(imageLayout.identifier(shader, ascent, fileName)) {
+                val component = image(imageLayout.identifier(elementShader, ascent, fileName)) {
                     val c = parent.newChar
                     val comp = Component.text()
                         .font(parent.imageKey)
@@ -48,7 +63,7 @@ class HudImageParser(parent: HudImpl, private val imageLayout: ImageLayout, gui:
                         (pair.image.image.width.toDouble() * scale).roundToInt()
                     )
                     parent.jsonArray?.let { array ->
-                        createAscent(shader, ascent) { y ->
+                        createAscent(elementShader, ascent) { y ->
                             array += jsonObjectOf(
                                 "type" to "bitmap",
                                 "file" to fileName,

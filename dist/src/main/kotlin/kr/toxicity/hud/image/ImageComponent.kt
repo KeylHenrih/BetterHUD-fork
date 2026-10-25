@@ -5,13 +5,14 @@ import kr.toxicity.hud.api.listener.HudListener
 import kr.toxicity.hud.api.player.HudPlayer
 import kr.toxicity.hud.api.update.UpdateEvent
 import kr.toxicity.hud.element.ImageElement
+import kr.toxicity.hud.util.append
 import kr.toxicity.hud.util.applyColor
 import kr.toxicity.hud.util.ifNull
 import kr.toxicity.hud.util.shadow
 import net.kyori.adventure.text.format.TextColor
 
 class ImageComponent(
-    private val original: ImageElement,
+    val original: ImageElement,
     private val parent: ImageComponent?,
     val images: List<PixelComponent>,
     val children: Map<String, ImageComponent>,
@@ -30,6 +31,17 @@ class ImageComponent(
         } ?: 0)
 
     infix fun choose(index: Long) = original.animationType.choose(images, index)
+
+    val collapsedImage: PixelComponent? by lazy {
+        if (original.isClientSequence && images.size > 1) {
+            var combined = images[0]
+            for (i in 1..images.lastIndex) {
+                val next = images[i]
+                combined = combined.append(-next.component.width, next)
+            }
+            combined
+        } else null
+    }
 
     fun apply(shadow: Int, color: TextColor): ImageComponent = ImageComponent(
         original,

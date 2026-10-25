@@ -73,28 +73,103 @@ class PopupImpl(
         PopupSortType.valueOf(it.uppercase())
     } ?: PopupSortType.LAST
 
-    private val layouts = section["layouts"]?.asObject()?.let {
+    private val layoutPair = section["layouts"]?.asObject()?.let {
         val json = array.ifNull { "error is occurred." }
         var i = 0
-        it.mapSubConfiguration { _, yamlObject ->
+        val sLayouts = ArrayList<PopupLayout>()
+        val cLayouts = ArrayList<PopupLayout>()
+        it.forEachSubConfiguration { _, yamlObject ->
             val layout = yamlObject["name"]?.asString().ifNull { "name value not set." }
             var loc = GuiLocation(yamlObject)
             yamlObject["gui"]?.asObject()?.let { gui ->
                 loc += GuiLocation(gui)
             }
-            PopupLayout(
+            val layoutObj = LayoutManager.getLayout(layout).ifNull { "this layout doesn't exist: $layout" }
+            val anim = layoutObj.animation
+            val clientAnim = anim.clientAnimation
+            val fullPath = "popup_${this@PopupImpl.name}/$layout/animation"
+            val hasHead = layoutObj.head.isNotEmpty()
+            val pixel = yamlObject["pixel"]?.asObject()?.let { PixelLocation(it) } ?: PixelLocation.zero
+
+            val lookahead = ConfigManagerImpl.animationLookaheadMax
+            val exceedsWindow = clientAnim != null && (clientAnim.duration + lookahead > (240 - lookahead))
+            val hasText = layoutObj.text.isNotEmpty()
+            var layoutM = 240
+            var enableClient = clientAnim != null && !hasHead && !exceedsWindow
+
+            if (hasHead && clientAnim != null) {
+                val reason = "head not supported in client mode (fallback to server)"
+                warn("Popup '${this@PopupImpl.name}' layout '$layout' has heads, forcing SERVER mode.")
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
+            } else if (exceedsWindow) {
+                val reason = "duration (${clientAnim.duration}) exceeds safe time window (fallback to server)"
+                warn("Popup '${this@PopupImpl.name}' layout '$layout' duration exceeds safe window, forcing SERVER mode.")
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
+            } else if (enableClient && clientAnim != null) {
+                if (clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
+                    val requiredTicks = clientAnim.duration + lookahead + 2
+                    val divisorM = kr.toxicity.hud.text.getDivisorM(requiredTicks)
+                    if (ConfigManagerImpl.textShadowMode == ConfigManagerImpl.TextShadowMode.DUAL && hasText) {
+                        if (divisorM != null) {
+                            layoutM = divisorM
+                            kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (exact dual mode, M=$layoutM)")
+                        } else {
+                            if (ConfigManagerImpl.textShadowFallback == ConfigManagerImpl.TextShadowFallback.SERVER) {
+                                enableClient = false
+                                warn("Popup '${this@PopupImpl.name}' layout '$layout' duration (${clientAnim.duration}) exceeds max shadow window M=120, forcing SERVER mode.")
+                                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, "duration (${clientAnim.duration}) exceeds max shadow window M=120 (fallback to server)")
+                            } else {
+                                layoutM = 240
+                                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (exact single-copy, shadow fallback)")
+                            }
+                        }
+                    } else {
+                        layoutM = divisorM ?: 240
+                        kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (exact single-copy, M=$layoutM)")
+                    }
+                } else {
+                    kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (loop)")
+                }
+            } else {
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, "Server fallback or legacy layout")
+            }
+
+            val serverLayout = PopupLayout(
                 ++i,
                 json,
-                LayoutManager.getLayout(layout).ifNull { "this layout doesn't exist: $layout" },
+                layoutObj,
                 this@PopupImpl,
                 loc,
-                yamlObject["pixel"]?.asObject()?.let { pixel ->
-                    PixelLocation(pixel)
-                } ?: PixelLocation.zero,
+                pixel,
                 resource.font,
+                enableClientAnimation = false,
+                layoutM = 240
             )
+            sLayouts.add(serverLayout)
+            if (enableClient) {
+                val clientLayout = PopupLayout(
+                    i,
+                    json,
+                    layoutObj,
+                    this@PopupImpl,
+                    loc,
+                    pixel,
+                    resource.font,
+                    enableClientAnimation = true,
+                    layoutM = layoutM
+                )
+                cLayouts.add(clientLayout)
+            } else {
+                cLayouts.add(serverLayout)
+            }
         }
-    }.ifNull { "layouts configuration not set." }.ifEmpty {
+        sLayouts to cLayouts
+    }.ifNull { "layouts configuration not set." }
+
+    private val serverLayouts = layoutPair.first.ifEmpty {
+        throw RuntimeException("layouts is empty.")
+    }
+    private val clientLayouts = layoutPair.second.ifEmpty {
         throw RuntimeException("layouts is empty.")
     }
 
@@ -180,10 +255,14 @@ class PopupImpl(
             player.popupKeyMap.remove(key)
             Unit
         }
+        val impl = player as? kr.toxicity.hud.player.HudPlayerImpl
+        val isClient = (impl?.isClientAnimationEnabled() ?: (ConfigManagerImpl.animationMode != kr.toxicity.hud.animation.AnimationMode.SERVER)) &&
+                ConfigManagerImpl.textClientMode != ConfigManagerImpl.TextClientMode.OFF
+        val targetLayouts = if (isClient) clientLayouts else serverLayouts
         val iterator = PopupIteratorImpl(
             reason,
             player,
-            layouts,
+            targetLayouts,
             this,
             unique,
             lastIndex,

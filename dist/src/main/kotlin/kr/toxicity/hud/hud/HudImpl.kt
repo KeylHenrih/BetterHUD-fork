@@ -43,8 +43,14 @@ class HudImpl(
     }
 
     private val elements = section["layouts"]?.asObject().ifNull { "layout configuration not set." }.mapSubConfiguration { s, yamlObject ->
-        val layout = yamlObject["name"]?.asString().ifNull { "name value not set: $s" }.let {
-            LayoutManager.getLayout(it).ifNull { "this layout doesn't exist: $it" }
+        val layoutName = yamlObject["name"]?.asString().ifNull { "name value not set: $s" }
+        val layout = LayoutManager.getLayout(layoutName).ifNull { "this layout doesn't exist: $layoutName" }
+        val anim = layout.animation
+        val fullPath = "hud_${this@HudImpl.name}/$layoutName/animation"
+        if (anim.clientAnimation != null) {
+            kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.CLIENT, anim.type, "Transpiled to GLSL shader (${anim.type.name})")
+        } else {
+            kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, "Server fallback or legacy layout")
         }
         var gui = GuiLocation(yamlObject)
         yamlObject["gui"]?.asObject()?.let {

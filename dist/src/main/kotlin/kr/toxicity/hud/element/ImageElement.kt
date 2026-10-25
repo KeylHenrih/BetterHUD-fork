@@ -1,10 +1,14 @@
 package kr.toxicity.hud.element
 
+import kr.toxicity.hud.animation.AnimationMode
+import kr.toxicity.hud.animation.AnimationType
+import kr.toxicity.hud.animation.ListenerAnimation
 import kr.toxicity.hud.api.yaml.YamlArray
 import kr.toxicity.hud.api.yaml.YamlElement
 import kr.toxicity.hud.api.yaml.YamlObject
 import kr.toxicity.hud.image.NamedLoadedImage
 import kr.toxicity.hud.image.enums.ImageType
+import kr.toxicity.hud.manager.ConfigManagerImpl
 import kr.toxicity.hud.manager.ImageManager
 import kr.toxicity.hud.manager.ListenerManagerImpl
 import kr.toxicity.hud.manager.PlaceholderManagerImpl
@@ -18,7 +22,8 @@ class ImageElement(
     override val id: String,
     val image: List<NamedLoadedImage>,
     val type: ImageType,
-    setting: YamlObject
+    val setting: YamlObject,
+    val listenerAnimation: ListenerAnimation? = null
 ) : HudElement, ConditionSource by ConditionSource.Impl(setting), PlaceholderSource by PlaceholderSource.Impl(setting) {
     val listener = setting["listener"]?.asObject()?.let {
         ListenerManagerImpl.getListener(it)
@@ -27,6 +32,14 @@ class ImageElement(
         if (this <= 0.0) throw RuntimeException("scale cannot be <= 0.0: $id")
     }
     val animationType = setting.getAsAnimationType("animation-type")
+
+    val isClientSequence: Boolean = type == ImageType.SEQUENCE &&
+        listener == null &&
+        animationType == AnimationType.LOOP &&
+        image.size in 2..32 &&
+        (setting["mode"]?.asString()?.lowercase() == "client" ||
+            (setting["mode"]?.asString()?.lowercase() != "server" &&
+                (ConfigManagerImpl.animationMode == AnimationMode.CLIENT || ConfigManagerImpl.animationMode == AnimationMode.HYBRID)))
 
     private val childrenMap = when (val child = setting["children"]) {
         is YamlArray -> child.associate {

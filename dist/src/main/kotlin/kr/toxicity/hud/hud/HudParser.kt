@@ -19,13 +19,13 @@ class HudParser(
     pixel: PixelLocation
 ) {
     private val imageElement = layout.image.map { image ->
-        HudImageParser(hud, image, gui, pixel)
+        HudImageParser(hud, image, gui, pixel, layout.animation.clientAnimation)
     }
     private val textElement = layout.text.mapIndexed { index, textLayout ->
-        HudTextParser(index + 1, hud, resource, textLayout, gui, pixel)
+        HudTextParser(index + 1, hud, resource, textLayout, gui, pixel, layout.animation.clientAnimation)
     }
     private val headElement = layout.head.map { image ->
-        HudHeadParser(hud, image, gui, pixel)
+        HudHeadParser(hud, image, gui, pixel, layout.animation.clientAnimation)
     }
 
     private val elements = listOf(

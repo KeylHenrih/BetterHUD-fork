@@ -117,4 +117,12 @@ public interface PopupIterator extends Comparable<PopupIterator> {
      * @param priority priority
      */
     void setPriority(int priority);
+
+    /**
+     * Gets the world tick at which this iterator was spawned.
+     * @return spawn time in world ticks
+     */
+    default long getSpawnTime() {
+        return 0L;
+    }
 }
