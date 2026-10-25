@@ -27,7 +27,8 @@ val DATA_FOLDER
         if (!exists()) mkdir()
     }
 
-val VOLATILE_CODE = BOOTSTRAP.volatileCode()
+val VOLATILE_CODE
+    get() = BOOTSTRAP.volatileCode()
 
 fun info(vararg message: String) = BOOTSTRAP.logger().info(*message)
 fun warn(vararg message: String) = BOOTSTRAP.logger().warn(*message)
