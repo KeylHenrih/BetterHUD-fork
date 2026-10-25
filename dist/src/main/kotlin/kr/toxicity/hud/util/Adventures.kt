@@ -212,29 +212,30 @@ fun Component.split(option: SplitOption, charWidth: (Pair<Style, Int>) -> Int?):
     return list
 }
 
-infix fun PixelComponent.applyColor(color: TextColor?): PixelComponent = if (color == null) this else apply {
-    component applyColor color
-}
-infix fun PixelComponent.shadow(shadow: Int): PixelComponent = apply {
-    component shadow shadow
-}
+infix fun PixelComponent.applyColor(color: TextColor?): PixelComponent = if (color == null) this else PixelComponent(
+    component applyColor color,
+    pixel
+)
+infix fun PixelComponent.shadow(shadow: Int): PixelComponent = PixelComponent(
+    component shadow shadow,
+    pixel
+)
 
-infix fun WidthComponent.shadow(shadow: Int) = apply {
-    component.shadowColor(ShadowColor.shadowColor(shadow))
-}
+infix fun WidthComponent.shadow(shadow: Int) = WidthComponent(
+    component.build().toBuilder().shadowColor(ShadowColor.shadowColor(shadow)),
+    width
+)
 
 infix fun WidthComponent.applyColor(color: TextColor?): WidthComponent = when (color?.value()) {
     null -> this
-    NamedTextColor.WHITE.value() -> WidthComponent(
-        component,
-        width
-    )
+    NamedTextColor.WHITE.value() -> this
     else -> {
-        val finalColor = component.build().color()?.let {
+        val built = component.build()
+        val finalColor = built.color()?.let {
             it * color
         } ?: color
         WidthComponent(
-            component.color(finalColor),
+            built.toBuilder().color(finalColor),
             width
         )
     }
