@@ -3,7 +3,7 @@ auto-save-time: 300
 location-provide-time: 1
 debug-level: assets
 metrics: true
-version-check: true
+version-check: false # Disabled by default in fork
 number-format: "#,###.#"
 tick-speed: 1
 namespace: "betterhud"
@@ -37,3 +37,4 @@ minecraft-jar-version: bukkit #1.21, 1.20.4, etc.
 remove-default-hotbar: false
 disable-legacy-offset: true
 merge-with-external-resources: true
+# Client shader and animation settings are configured in shader.yml

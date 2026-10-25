@@ -183,7 +183,7 @@ class VelocityBootstrapImpl @Inject constructor(
 
     private var metrics: Metrics? = null
     override fun startMetrics() {
-        if (metrics == null) metrics = factory.make(this, BetterHud.BSTATS_ID_VELOCITY)
+        if (BetterHud.BSTATS_ID_VELOCITY > 0 && metrics == null) metrics = factory.make(this, BetterHud.BSTATS_ID_VELOCITY)
     }
 
     override fun endMetrics() {

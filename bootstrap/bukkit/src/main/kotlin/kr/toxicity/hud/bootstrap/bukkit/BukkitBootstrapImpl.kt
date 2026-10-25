@@ -1,5 +1,6 @@
 package kr.toxicity.hud.bootstrap.bukkit
 
+import java.util.UUID
 import kr.toxicity.hud.BetterHudImpl
 import kr.toxicity.hud.api.BetterHud
 import kr.toxicity.hud.api.BetterHudAPI
@@ -174,6 +175,7 @@ class BukkitBootstrapImpl : BukkitBootstrap, JavaPlugin() {
     override fun isFolia(): Boolean = isFolia
     override fun volatileCode(): NMS = nms
     override fun bedrockAdapter(): BedrockAdapter = bedrockAdapter
+    override fun isBedrockPlayer(uuid: UUID): Boolean = bedrockAdapter.isBedrockPlayer(uuid)
 
     override fun isPaper(): Boolean = isPaper
     override fun scheduler(): HudScheduler = scheduler
@@ -308,7 +310,7 @@ class BukkitBootstrapImpl : BukkitBootstrap, JavaPlugin() {
 
     private var metrics: Metrics? = null
     override fun startMetrics() {
-        if (metrics == null) metrics = Metrics(this, BetterHud.BSTATS_ID_BUKKIT)
+        if (BetterHud.BSTATS_ID_BUKKIT > 0 && metrics == null) metrics = Metrics(this, BetterHud.BSTATS_ID_BUKKIT)
     }
 
     override fun endMetrics() {

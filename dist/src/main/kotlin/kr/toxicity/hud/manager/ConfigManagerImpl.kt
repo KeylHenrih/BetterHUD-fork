@@ -1,5 +1,6 @@
 package kr.toxicity.hud.manager
 
+import kr.toxicity.hud.animation.AnimationMode
 import kr.toxicity.hud.api.manager.ConfigManager
 import kr.toxicity.hud.api.manager.ConfigManager.DebugLevel
 import kr.toxicity.hud.api.plugin.ReloadInfo
@@ -101,6 +102,39 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
     var mergeWithExternalResources = false
         private set
 
+    var animationMode = AnimationMode.SERVER
+        private set
+    var animationLookaheadMax = 5
+        private set
+    var animationDebugSlowmo = 1.0
+        private set
+    var animationDebugProbe = false
+        private set
+
+    enum class TextClientMode {
+        EXACT,
+        OFF
+    }
+
+    enum class TextShadowMode {
+        DUAL,
+        OFF
+    }
+
+    enum class TextShadowFallback {
+        EXACT,
+        SERVER
+    }
+
+    var textClientMode = TextClientMode.EXACT
+        private set
+    var textShadowMode = TextShadowMode.DUAL
+        private set
+    var textShadowFallback = TextShadowFallback.EXACT
+        private set
+    var deleteShadersOnStart = true
+        private set
+
     override fun start() {
         preReload()
     }
@@ -123,6 +157,8 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
             }
             val yaml = PluginConfiguration.CONFIG.create()
             debug = yaml.getAsBoolean("debug", false)
+            val shaderYaml = runCatching { PluginConfiguration.SHADER.create() }.getOrNull()
+            deleteShadersOnStart = shaderYaml?.get("delete-shaders-on-start")?.asBoolean() ?: yaml.getAsBoolean("delete-shaders-on-start", true)
             autoSaveTime = yaml.getAsLong("auto-save-time", 300) * 20
             locationProvideTime = yaml.getAsLong("location-provide-time", 1) * 20
             debugLevel = runCatching {
@@ -212,6 +248,48 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
             removeDefaultHotbar = yaml.getAsBoolean("remove-default-hotbar", false)
             disableLegacyOffset = yaml.getAsBoolean("disable-legacy-offset", false)
             mergeWithExternalResources = yaml.getAsBoolean("merge-with-external-resources", true)
+            fun getShaderSetting(key: String) = shaderYaml?.get(key) ?: yaml[key]
+
+            animationLookaheadMax = (getShaderSetting("animation-lookahead-max")?.asInt() ?: 5).coerceIn(0, 20)
+            animationDebugSlowmo = (getShaderSetting("animation-debug-slowmo")?.asDouble() ?: 1.0).coerceIn(0.01, 10.0)
+            animationDebugProbe = getShaderSetting("animation-debug-probe")?.asBoolean() ?: false
+            deleteShadersOnStart = getShaderSetting("delete-shaders-on-start")?.asBoolean() ?: true
+            getShaderSetting("text-client-mode")?.asString()?.let {
+                runCatching {
+                    textClientMode = TextClientMode.valueOf(it.uppercase())
+                }.handleFailure {
+                    "Unable to read text-client-mode: $it"
+                }
+            } ?: run {
+                textClientMode = TextClientMode.EXACT
+            }
+            getShaderSetting("text-shadow-mode")?.asString()?.let {
+                runCatching {
+                    textShadowMode = TextShadowMode.valueOf(it.uppercase())
+                }.handleFailure {
+                    "Unable to read text-shadow-mode: $it"
+                }
+            } ?: run {
+                textShadowMode = TextShadowMode.DUAL
+            }
+            getShaderSetting("text-shadow-fallback")?.asString()?.let {
+                runCatching {
+                    textShadowFallback = TextShadowFallback.valueOf(it.uppercase())
+                }.handleFailure {
+                    "Unable to read text-shadow-fallback: $it"
+                }
+            } ?: run {
+                textShadowFallback = TextShadowFallback.EXACT
+            }
+            getShaderSetting("animation-mode")?.asString()?.let {
+                runCatching {
+                    animationMode = AnimationMode.valueOf(it.uppercase())
+                }.handleFailure {
+                    "Unable to read animation-mode: $it"
+                }
+            } ?: run {
+                animationMode = AnimationMode.SERVER
+            }
         }.handleFailure {
             "Unable to load config.yml"
         }

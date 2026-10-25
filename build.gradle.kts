@@ -84,11 +84,12 @@ hangarPublish {
         id = "BetterHud"
         apiKey = System.getenv("HANGAR_API_TOKEN")
         val log = System.getenv("COMMIT_MESSAGE")
+        val changelogFile = rootProject.file("changelog/${project.version}.md")
         if (log != null) {
             changelog = log
             channel = "Snapshot"
         } else {
-            changelog = rootProject.file("changelog/${project.version}.md").readText()
+            changelog = if (changelogFile.exists()) changelogFile.readText() else "BetterHud fork release ${project.version}"
             channel = "Release"
         }
         platforms {

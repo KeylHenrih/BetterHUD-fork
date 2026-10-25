@@ -119,6 +119,15 @@ public interface BetterHudBootstrap {
     boolean isFabric();
 
     /**
+     * Whether given player UUID is from Bedrock client.
+     * @param uuid player uuid
+     * @return whether player is Bedrock
+     */
+    default boolean isBedrockPlayer(@NotNull java.util.UUID uuid) {
+        return false;
+    }
+
+    /**
      * Starts BStats metrics.
      */
     void startMetrics();

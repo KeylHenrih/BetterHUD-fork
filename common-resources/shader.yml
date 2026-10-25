@@ -1,2 +1,38 @@
 bar-color: yellow
 disable-level-text: false
+
+# Animation execution mode:
+# - client: offloads animations to client vertex shaders where supported.
+# - server: classic server-tick rendering (100% vanilla compatibility).
+# - hybrid: listener bars in client mode, remaining elements in server mode.
+animation-mode: client
+
+# Text rendering mode in client popups:
+# - exact: lossless 24-bit RGB colors without quantization. In exact mode for play_once text,
+#          vanilla shadow is replaced by exact colors.
+# - off: server-rendered text fallback (preserves vanilla shadow).
+text-client-mode: exact
+
+# Text shadow rendering mode in client popups:
+# - dual: emits dual copies (shadow layer + text layer) with exact shadow and text colors.
+# - off: single-copy text without shadow (saves buffer vertices).
+text-shadow-mode: dual
+
+# Fallback policy when text shadow is unavailable (e.g. duration exceeds max window M=120):
+# - exact: smooth client animation with exact text color, without shadow.
+# - server: server-side rendering with vanilla shadow, at 20 Hz server tick rate.
+text-shadow-fallback: exact
+
+# Automatically backup and refresh plugins/BetterHud/shaders directory on startup and reload.
+# When set to true, existing shaders are safely backed up to shaders.bak-<timestamp> (up to 3 backups retained).
+# Default: false (prevents unintended overwrites of custom shaders).
+delete-shaders-on-start: false
+
+# Enable debug probe popups and test matrix for shader development.
+animation-debug-probe: false
+
+# Maximum animation lookahead ticks compensation for player network latency.
+animation-lookahead-max: 5
+
+# Debug slow-motion multiplier (1.0 = normal speed).
+animation-debug-slowmo: 1.0

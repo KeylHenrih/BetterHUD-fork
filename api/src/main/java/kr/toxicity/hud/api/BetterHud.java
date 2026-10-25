@@ -36,13 +36,13 @@ public interface BetterHud {
     String EXAMINATION_VERSION = "1.3.0";
 
     /**
-     * BStats id for Bukkit
+     * BStats id for Bukkit (-1 = disabled for fork)
      */
-    int BSTATS_ID_BUKKIT = 21287;
+    int BSTATS_ID_BUKKIT = -1;
     /**
-     * BStats id for Velocity
+     * BStats id for Velocity (-1 = disabled for fork)
      */
-    int BSTATS_ID_VELOCITY = 23460;
+    int BSTATS_ID_VELOCITY = -1;
 
 
     /**
