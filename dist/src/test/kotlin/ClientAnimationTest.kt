@@ -1936,4 +1936,96 @@ class ClientAnimationTest {
         assertEquals(0, assignedIds[1023], "Slot 1024 must fall back to 0")
         assertEquals(0, assignedIds[1024], "Slot 1025 must fall back to 0")
     }
+
+    @Test
+    fun testPropertyFuzzComponentTrees() {
+        val random = java.util.Random(1337)
+        val validMList = listOf(20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120)
+
+        fun randomColor(): TextColor? {
+            return if (random.nextBoolean()) {
+                TextColor.color(random.nextInt(256), random.nextInt(256), random.nextInt(256))
+            } else null
+        }
+
+        fun randomStyle(): net.kyori.adventure.text.format.Style {
+            val b = net.kyori.adventure.text.format.Style.style()
+            randomColor()?.let { b.color(it) }
+            if (random.nextInt(4) == 0) {
+                if (random.nextBoolean()) b.shadowColor(net.kyori.adventure.text.format.ShadowColor.shadowColor(random.nextInt(256), random.nextInt(256), random.nextInt(256), 255))
+                else b.shadowColor(net.kyori.adventure.text.format.ShadowColor.shadowColor(0))
+            }
+            if (random.nextBoolean()) b.decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)
+            if (random.nextBoolean()) b.decorate(net.kyori.adventure.text.format.TextDecoration.ITALIC)
+            return b.build()
+        }
+
+        fun generateRandomTree(depth: Int): Component {
+            val words = listOf("Hello", "Crit!", "-450", "Damage", "★", "", " ", "100%", "HP")
+            val content = words[random.nextInt(words.size)]
+            val node = Component.text(content, randomStyle())
+            if (depth <= 1 || random.nextBoolean()) {
+                return node
+            }
+            val numChildren = random.nextInt(4)
+            val children = (0 until numChildren).map { generateRandomTree(depth - 1) }
+            return node.children(children)
+        }
+
+        for (i in 1..10000) {
+            val tree = generateRandomTree(4)
+            val fakeWidth = random.nextInt(200) + 10
+            val widthComp = WidthComponent(Component.text().append(tree), fakeWidth)
+            val M = validMList[random.nextInt(validMList.size)]
+            val tStart = random.nextInt(M)
+
+            // Test applyClientExact
+            val exactComp = widthComp.applyClientExact(tStart)
+            assertEquals(fakeWidth, exactComp.width, "Exact mode must preserve component width")
+            assertNotNull(exactComp.component, "Exact mode component must not be null")
+
+            // Test applyClientExactDual
+            val dualComp = widthComp.applyClientExactDual(tStart, M)
+            assertEquals(fakeWidth, dualComp.width, "Dual mode must preserve component width")
+            assertNotNull(dualComp.component, "Dual mode component must not be null")
+        }
+    }
+
+    @Test
+    fun testTimeBoundaryAroundMAnd24000() {
+        val random = java.util.Random(42)
+        val validMList = listOf(20, 24, 25, 30, 32, 40, 48, 50, 60, 64, 75, 80, 96, 100, 120, 240)
+
+        fun jmod(x: Double, y: Double): Double = x - y * kotlin.math.floor(x / y)
+        fun getElapsedTicks(tStart: Double, gameTimeTicks: Double, M: Double): Double {
+            return jmod(gameTimeTicks - tStart + 10.0, M) - 10.0
+        }
+
+        for (iter in 1..5000) {
+            val M = validMList[random.nextInt(validMList.size)].toDouble()
+            val L = random.nextInt(6).toDouble() // 0..5
+            // Test boundaries: around 0, around 24000, around 48000, around arbitrary world ticks
+            val spawnTime = when (random.nextInt(4)) {
+                0 -> random.nextInt(100).toDouble()
+                1 -> 24000.0 - 5.0 + random.nextInt(10)
+                2 -> 48000.0 - 5.0 + random.nextInt(10)
+                else -> random.nextInt(100000).toDouble()
+            }
+            // In BetterHUD, tStart is always (spawnTime % M)
+            val tStart = jmod(spawnTime, M)
+
+            // Monotonic progression over the safe window [0, M - 10)
+            val maxSafeTicks = (M - 10 - 1).toInt().coerceAtLeast(0)
+            var prevElapsed = -100.0
+            for (tick in 0..maxSafeTicks) {
+                val now = spawnTime + tick
+                val elapsed = getElapsedTicks(tStart, jmod(now, 24000.0), M)
+                assertEquals(tick.toDouble(), elapsed, 0.001, "Elapsed must equal exact ticks since spawn at now=$now")
+                if (tick > 0) {
+                    assertTrue(elapsed > prevElapsed, "Elapsed ticks must increase monotonically: prev=$prevElapsed, curr=$elapsed")
+                }
+                prevElapsed = elapsed
+            }
+        }
+    }
 }

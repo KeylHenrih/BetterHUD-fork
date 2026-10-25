@@ -211,8 +211,8 @@ private const val EXACT_CACHE_MAX_SIZE = 2048
 private val exactDualCache = java.util.concurrent.ConcurrentHashMap<ExactDualCacheKey, WidthComponent>()
 private val exactSingleCache = java.util.concurrent.ConcurrentHashMap<ExactSingleCacheKey, WidthComponent>()
 
-data class ExactDualCacheKey(val component: Component, val tStartByte: Int, val moduloM: Int)
-data class ExactSingleCacheKey(val component: Component, val tStartByte: Int)
+data class ExactDualCacheKey(val component: Component, val tStartByte: Int, val moduloM: Int, val width: Int)
+data class ExactSingleCacheKey(val component: Component, val tStartByte: Int, val width: Int)
 
 fun clearExactTextCache() {
     exactDualCache.clear()
@@ -221,7 +221,7 @@ fun clearExactTextCache() {
 
 fun WidthComponent.applyClientExact(tStartByte: Int): WidthComponent {
     val built = component.build()
-    val key = ExactSingleCacheKey(built, tStartByte)
+    val key = ExactSingleCacheKey(built, tStartByte, width)
     exactSingleCache[key]?.let { return it }
 
     val transformed = built.applyClientExact(tStartByte)
@@ -247,7 +247,7 @@ fun WidthComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): WidthCom
     if (!built.hasAnyShadow()) {
         return applyClientExact(tStartByte)
     }
-    val key = ExactDualCacheKey(built, tStartByte, moduloM)
+    val key = ExactDualCacheKey(built, tStartByte, moduloM, width)
     exactDualCache[key]?.let { return it }
 
     val copyShadow = built.applyClientDualRole(DualCopyRole.SHADOW, tStartByte, moduloM)
