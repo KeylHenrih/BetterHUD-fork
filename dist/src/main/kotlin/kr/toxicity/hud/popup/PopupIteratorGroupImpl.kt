@@ -9,8 +9,7 @@ import java.util.*
 class PopupIteratorGroupImpl : PopupIteratorGroup {
     private val sourceSet = TreeSet<PopupIterator>()
 
-    val iterators: Collection<PopupIterator>
-        get() = synchronized(sourceSet) { sourceSet.toList() }
+    override fun getIterators(): Collection<PopupIterator> = synchronized(sourceSet) { sourceSet.toList() }
 
     override fun addIterator(iterator: PopupIterator) {
         synchronized(sourceSet) {

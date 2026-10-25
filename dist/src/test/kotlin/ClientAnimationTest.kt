@@ -1709,6 +1709,147 @@ class ClientAnimationTest {
     }
 
     @Test
+    fun testWorldChangeAndRespawnParity() {
+        var bedrockFlag = false
+        val modeField = ConfigManagerImpl::class.java.getDeclaredField("animationMode")
+        modeField.isAccessible = true
+        modeField.set(ConfigManagerImpl, kr.toxicity.hud.animation.AnimationMode.CLIENT)
+
+        val mockScheduler = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.scheduler.HudScheduler::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.scheduler.HudScheduler::class.java)
+        ) { _, _, _ ->
+            java.lang.reflect.Proxy.newProxyInstance(
+                kr.toxicity.hud.api.scheduler.HudTask::class.java.classLoader,
+                arrayOf(kr.toxicity.hud.api.scheduler.HudTask::class.java)
+            ) { _, _, _ -> null }
+        } as kr.toxicity.hud.api.scheduler.HudScheduler
+
+        val mockVolatile = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java)
+        ) { _, _, _ -> null } as kr.toxicity.hud.api.volatilecode.VolatileCodeHandler
+
+        val mockBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "isBedrockPlayer" -> bedrockFlag
+                "volatileCode" -> mockVolatile
+                "scheduler" -> mockScheduler
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+
+        val mockHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> mockBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+
+        val mainField = kr.toxicity.hud.api.BetterHudAPI::class.java.getDeclaredField("main")
+        mainField.isAccessible = true
+        mainField.set(null, mockHud)
+
+        val playerUuid = java.util.UUID.randomUUID()
+        var reloadCount = 0
+        val dummyPlayer = object : kr.toxicity.hud.player.HudPlayerImpl() {
+            override fun updatePlaceholder() {}
+            override fun uuid(): java.util.UUID = playerUuid
+            override fun name(): String = "ParityPlayer"
+            override fun audience(): net.kyori.adventure.audience.Audience = net.kyori.adventure.audience.Audience.empty()
+            override fun hasPermission(perm: String): Boolean = true
+            override fun locale(): java.util.Locale = java.util.Locale.ENGLISH
+            override fun location(): kr.toxicity.hud.api.adapter.LocationWrapper = throw UnsupportedOperationException()
+            override fun world(): kr.toxicity.hud.api.adapter.WorldWrapper = throw UnsupportedOperationException()
+            override fun handle(): Any = this
+            override fun reload() {
+                reloadCount++
+                super.reload()
+            }
+        }
+
+        var mockSpawnTime = 100L
+        val mockIterator = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.popup.PopupIterator::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.popup.PopupIterator::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getSpawnTime" -> mockSpawnTime
+                "resetSpawnTime" -> {
+                    mockSpawnTime = args[0] as Long
+                    null
+                }
+                "getIndex" -> 0
+                "getMaxIndex" -> 1
+                "markedAsRemoval" -> false
+                "name" -> "test_popup"
+                "isUnique" -> false
+                "compareTo" -> 0
+                "push" -> false
+                "parent" -> {
+                    java.lang.reflect.Proxy.newProxyInstance(
+                        kr.toxicity.hud.api.popup.Popup::class.java.classLoader,
+                        arrayOf(kr.toxicity.hud.api.popup.Popup::class.java)
+                    ) { _, m, _ ->
+                        when (m.name) {
+                            "getMaxStack" -> 10
+                            else -> null
+                        }
+                    }
+                }
+                "getSortType" -> kr.toxicity.hud.api.popup.PopupSortType.FIRST
+                "getUUID" -> java.util.UUID.randomUUID()
+                else -> null
+            }
+        } as kr.toxicity.hud.api.popup.PopupIterator
+
+        val group = kr.toxicity.hud.popup.PopupIteratorGroupImpl()
+        group.addIterator(mockIterator)
+        dummyPlayer.popupGroupIteratorMap["default"] = group
+
+        // --- SUBTEST 1: Server Mode Parity ---
+        dummyPlayer.setPlayerAnimationMode(kr.toxicity.hud.animation.PlayerAnimationMode.SERVER)
+        assertFalse(dummyPlayer.isClientAnimationEnabled(), "Player must be in server mode")
+
+        dummyPlayer.handleWorldChange(5000L)
+        dummyPlayer.handleRespawn(5000L)
+
+        assertEquals(0, reloadCount, "Server mode MUST NOT trigger player.reload() on world change / respawn (prevents bossbar flicker)")
+        assertEquals(1, dummyPlayer.popupGroupIteratorMap.size, "Server mode MUST NOT wipe popup queues on world change / respawn")
+        assertEquals(100L, mockIterator.getSpawnTime(), "Server mode MUST NOT alter popup spawn time")
+
+        // --- SUBTEST 2: Client Mode Minimal Cleanup ---
+        dummyPlayer.setPlayerAnimationMode(kr.toxicity.hud.animation.PlayerAnimationMode.CLIENT)
+        assertTrue(dummyPlayer.isClientAnimationEnabled(), "Player must be in client mode")
+
+        // Register a tracker to simulate active listener
+        val tracker = kr.toxicity.hud.animation.ListenerTracker(20, EasingType.LINEAR)
+        tracker.update(0.8, 100L)
+        val trackerMapField = kr.toxicity.hud.image.enums.ImageType::class.java.getDeclaredField("trackerMap")
+        trackerMapField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val trackerMap = trackerMapField.get(null) as java.util.concurrent.ConcurrentHashMap<java.util.UUID, java.util.concurrent.ConcurrentHashMap<String, kr.toxicity.hud.animation.ListenerTracker>>
+        val playerTrackers = java.util.concurrent.ConcurrentHashMap<String, kr.toxicity.hud.animation.ListenerTracker>()
+        playerTrackers["health"] = tracker
+        trackerMap[playerUuid] = playerTrackers
+
+        assertNotNull(kr.toxicity.hud.image.enums.ImageType.getTrackers(playerUuid), "Tracker must exist before world change")
+
+        dummyPlayer.handleWorldChange(5000L)
+
+        assertEquals(0, reloadCount, "Client mode MUST NOT trigger full player.reload() (avoids bossbar flicker)")
+        assertEquals(1, dummyPlayer.popupGroupIteratorMap.size, "Client mode MUST NOT wipe active popup queue")
+        assertEquals(5000L, mockIterator.getSpawnTime(), "Client mode MUST re-anchor popup spawn time T0 to new world time")
+        assertNull(kr.toxicity.hud.image.enums.ImageType.getTrackers(playerUuid), "Client mode MUST clear listener trackers to avoid time jumps")
+    }
+
+    @Test
     fun testClientExactCachingAndBenchmark() {
         val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
         val text30Chars = mm.deserialize("<gold>Damage dealt: <red>-1,250 HP critical!</red></gold>")

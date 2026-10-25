@@ -231,17 +231,16 @@ class BukkitBootstrapImpl : BukkitBootstrap, JavaPlugin() {
             }
             @EventHandler
             fun PlayerChangedWorldEvent.changeWorld() {
-                PlayerManagerImpl.getHudPlayer(player.uniqueId)?.let {
-                    kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uniqueId)
-                    it.popupGroupIteratorMap.values.forEach { group -> group.clear() }
-                    it.reload()
+                val hudPlayer = PlayerManagerImpl.getHudPlayer(player.uniqueId) ?: return
+                if (hudPlayer is kr.toxicity.hud.player.HudPlayerImpl) {
+                    hudPlayer.handleWorldChange(player.world.time)
                 }
             }
             @EventHandler
             fun PlayerRespawnEvent.respawn() {
-                PlayerManagerImpl.getHudPlayer(player.uniqueId)?.let {
-                    kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uniqueId)
-                    it.popupGroupIteratorMap.values.forEach { group -> group.clear() }
+                val hudPlayer = PlayerManagerImpl.getHudPlayer(player.uniqueId) ?: return
+                if (hudPlayer is kr.toxicity.hud.player.HudPlayerImpl) {
+                    hudPlayer.handleRespawn(respawnLocation.world?.time ?: player.world.time)
                 }
             }
         }, this)

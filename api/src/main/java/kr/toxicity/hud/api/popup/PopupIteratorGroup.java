@@ -48,4 +48,13 @@ public interface PopupIteratorGroup {
     default boolean contains(@NotNull Popup popup) {
         return contains(popup.getName());
     }
+
+    /**
+     * Gets all active iterators in this group.
+     * @return collection of iterators
+     */
+    @NotNull
+    default java.util.Collection<PopupIterator> getIterators() {
+        return java.util.Collections.emptyList();
+    }
 }

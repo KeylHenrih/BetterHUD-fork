@@ -215,4 +215,24 @@ abstract class HudPlayerImpl : HudPlayer {
     override fun type(): SenderType = SenderType.PLAYER
 
     override fun pointers(): MutableSet<PointedLocation> = pointers
+
+    fun handleWorldChange(newWorldTime: Long) {
+        if (!isClientAnimationEnabled()) return
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
+        popupGroup.values.forEach { group ->
+            group.iterators.forEach { iter ->
+                iter.resetSpawnTime(newWorldTime)
+            }
+        }
+    }
+
+    fun handleRespawn(newWorldTime: Long) {
+        if (!isClientAnimationEnabled()) return
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
+        popupGroup.values.forEach { group ->
+            group.iterators.forEach { iter ->
+                iter.resetSpawnTime(newWorldTime)
+            }
+        }
+    }
 }
