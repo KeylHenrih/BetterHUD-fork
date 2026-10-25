@@ -1,5 +1,8 @@
 package kr.toxicity.hud.shader
 
+import kr.toxicity.hud.animation.ClientAnimation
+import kr.toxicity.hud.animation.ListenerAnimation
+import kr.toxicity.hud.animation.SequenceAnimation
 import kr.toxicity.hud.location.GuiLocation
 
 data class HudShader(
@@ -9,8 +12,17 @@ data class HudShader(
     val outline: Int,
     val opacity: Double,
     val property: Int,
+    val clientAnimation: ClientAnimation? = null,
+    val listenerAnimation: ListenerAnimation? = null,
+    val sequenceAnimation: SequenceAnimation? = null,
+    val isText: Boolean = false,
+    val isProbe: Boolean = false,
+    val moduloM: Int = 240
 ) : Comparable<HudShader> {
     companion object {
+        private val clientAnimationComparator: Comparator<ClientAnimation?> = Comparator.nullsFirst(Comparator.naturalOrder<ClientAnimation>())
+        private val listenerAnimationComparator: Comparator<ListenerAnimation?> = Comparator.nullsFirst(Comparator.naturalOrder<ListenerAnimation>())
+        private val sequenceAnimationComparator: Comparator<SequenceAnimation?> = Comparator.nullsFirst(Comparator.naturalOrder<SequenceAnimation>())
         private val comparator = Comparator.comparing { s: HudShader ->
             s.gui
         }.thenComparing { s: HudShader ->
@@ -23,7 +35,12 @@ data class HudShader(
             s.opacity
         }.thenComparing { s: HudShader ->
             s.property
-        }
+        }.thenComparing({ s: HudShader -> s.clientAnimation }, clientAnimationComparator)
+        .thenComparing({ s: HudShader -> s.listenerAnimation }, listenerAnimationComparator)
+        .thenComparing({ s: HudShader -> s.sequenceAnimation }, sequenceAnimationComparator)
+        .thenComparing { s: HudShader -> s.isText }
+        .thenComparing { s: HudShader -> s.isProbe }
+        .thenComparingInt { s: HudShader -> s.moduloM }
     }
 
     override fun compareTo(other: HudShader): Int {
@@ -36,7 +53,11 @@ data class HudShader(
         layer,
         0,
         opacity * otherOpacity,
-        property
+        property,
+        clientAnimation,
+        null,
+        null,
+        moduloM = moduloM
     )
 
     fun toFancyHead() = HudShader(
@@ -45,6 +66,10 @@ data class HudShader(
         layer + 1,
         0x8F shl 24,
         opacity,
-        property
+        property,
+        clientAnimation,
+        listenerAnimation,
+        sequenceAnimation,
+        moduloM = moduloM
     )
 }

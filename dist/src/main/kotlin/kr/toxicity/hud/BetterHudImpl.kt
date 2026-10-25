@@ -30,6 +30,13 @@ import java.util.zip.ZipEntry
 class BetterHudImpl(val bootstrap: BetterHudBootstrap) : BetterHud {
 
     init {
+        File(bootstrap.dataFolder(), "shaders").let { shadersDir ->
+            if (shadersDir.exists()) {
+                if (shadersDir.deleteRecursively()) {
+                    bootstrap.logger().info("Deleted shaders/ directory at startup for fresh extraction.")
+                }
+            }
+        }
         if (!bootstrap.dataFolder().exists() && !bootstrap.isVelocity) loadAssets("default", bootstrap.dataFolder().apply {
             mkdir()
         })

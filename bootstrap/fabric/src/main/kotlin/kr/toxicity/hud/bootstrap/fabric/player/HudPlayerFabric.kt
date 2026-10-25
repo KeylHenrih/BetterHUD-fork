@@ -73,6 +73,8 @@ class HudPlayerFabric(
     )
 
     override fun world(): WorldWrapper = (BOOTSTRAP as FabricBootstrapImpl).wrap(listener.player.level())
+    override fun worldTime(): Long = listener.player.level().gameTime
+    override fun ping(): Int = listener.latency()
 
     override fun handle(): Any = listener.player
 }

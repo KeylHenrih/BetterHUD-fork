@@ -361,9 +361,15 @@ object PlaceholderManagerImpl : PlaceholderManager, BetterHudManager {
     override fun getBooleanContainer(): PlaceholderContainer<Boolean> = boolean
     override fun getStringContainer(): PlaceholderContainer<String> = string
     override fun start() {
+        if (ConfigManagerImpl.animationDebugProbe || ConfigManagerImpl.debug()) {
+            kr.toxicity.hud.debug.DebugProbeHelper.init()
+        }
     }
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
+        if (ConfigManagerImpl.animationDebugProbe || ConfigManagerImpl.debug()) {
+            kr.toxicity.hud.debug.DebugProbeHelper.init()
+        }
     }
 
     override fun end() {

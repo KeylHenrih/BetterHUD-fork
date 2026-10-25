@@ -23,6 +23,8 @@ class HudPlayerBukkit(
     override fun world(): WorldWrapper = WorldWrapper(
         player.world.name
     )
+    override fun worldTime(): Long = player.world.gameTime
+    override fun ping(): Int = player.ping
 
     override fun locale(): Locale = player.locale.let {
         val split = it.split('_')

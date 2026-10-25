@@ -25,6 +25,10 @@ object PopupManagerImpl : BetterHudManager, PopupManager {
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
         workingDirectory.subFolder("popups").forEachAllYaml(info.sender) { file, s, yamlObject ->
+            val isDebugPopup = file.name.startsWith("debug_probe") || file.name.startsWith("debug_image") || file.name.startsWith("debug_color")
+            if (isDebugPopup && !ConfigManagerImpl.animationDebugProbe && !ConfigManagerImpl.debug()) {
+                return@forEachAllYaml
+            }
             runCatching {
                 popupMap.putSync("popup") {
                     PopupImpl(s, resource, yamlObject)

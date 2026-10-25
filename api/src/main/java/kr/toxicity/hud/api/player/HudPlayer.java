@@ -103,6 +103,22 @@ public interface HudPlayer extends BetterCommandSource {
     long getTick();
 
     /**
+     * Gets player's world game time.
+     * @return world game time
+     */
+    default long worldTime() {
+        return getTick();
+    }
+
+    /**
+     * Gets player ping in milliseconds.
+     * @return ping in ms
+     */
+    default int ping() {
+        return 0;
+    }
+
+    /**
      * Cancel and close player's data.
      */
     void cancel();

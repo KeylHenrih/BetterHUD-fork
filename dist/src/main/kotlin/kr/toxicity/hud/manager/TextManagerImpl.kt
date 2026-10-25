@@ -273,6 +273,32 @@ object TextManagerImpl : BetterHudManager, TextManager {
                 "chars" to it.chars
             )
         }
+        val isDebugOrProbe = ConfigManagerImpl.animationDebugProbe || ConfigManagerImpl.debug()
+        if (isDebugOrProbe) {
+            val solidQuadImage = java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB).apply {
+                for (x in 0 until 8) {
+                    for (y in 0 until 8) {
+                        setRGB(x, y, 0xFFFFFFFF.toInt())
+                    }
+                }
+            }
+            val solidQuadBytes = java.io.ByteArrayOutputStream().apply {
+                javax.imageio.ImageIO.write(solidQuadImage, "PNG", this)
+            }.toByteArray()
+            val solidQuadEncoded = "solid_quad".encodeKey(EncodeManager.EncodeNamespace.TEXTURES)
+            val solidQuadFileName = "$solidQuadEncoded.png"
+            PackGenerator.addTask(resource.textures + solidQuadFileName) {
+                solidQuadBytes
+            }
+            defaultArray += jsonObjectOf(
+                "type" to "bitmap",
+                "file" to "$NAME_SPACE_ENCODED:$solidQuadFileName",
+                "ascent" to 7,
+                "height" to 8,
+                "chars" to jsonArrayOf("█")
+            )
+            textWidthMap['█'.code] = 8
+        }
         PackGenerator.addTask(resource.font + "${ConfigManagerImpl.key.defaultKey.value()}.json") {
             jsonObjectOf("providers" to defaultArray).toByteArray()
         }
@@ -330,14 +356,19 @@ object TextManagerImpl : BetterHudManager, TextManager {
                             s,
                             resource.textures,
                             section["chars"].ifNull { "Unable to find 'chars' array." }.asObject().mapSubConfiguration { _, obj ->
-                                BitmapData(
-                                    obj.get("codepoints").ifNull { "codepoints value not set." }.asArray().map { y ->
-                                        y.asString()
-                                    },
-                                    obj.get("file").ifNull { "file value not set." }.asString(),
-                                    obj.getAsInt("ascent", 0)
-                                )
-                            },
+                                val fileStr = obj.get("file").ifNull { "file value not set." }.asString()
+                                if (fileStr.contains("solid_quad") && !ConfigManagerImpl.animationDebugProbe && !ConfigManagerImpl.debug()) {
+                                    null
+                                } else {
+                                    BitmapData(
+                                        obj.get("codepoints").ifNull { "codepoints value not set." }.asArray().map { y ->
+                                            y.asString()
+                                        },
+                                        fileStr,
+                                        obj.getAsInt("ascent", 0)
+                                    )
+                                }
+                            }.filterNotNull(),
                             section
                         )
                     }
@@ -521,6 +552,33 @@ object TextManagerImpl : BetterHudManager, TextManager {
                         divHeight.toDouble(),
                     ) {
                         d.ascent
+                    }
+                }
+                if (ConfigManagerImpl.animationDebugProbe || ConfigManagerImpl.debug()) {
+                    if (charWidthMap['█'.code] == null) {
+                        charWidthMap['█'.code] = TextScale(8.0, 8.0)
+                        val solidQuadImage = java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB).apply {
+                            for (x in 0 until 8) {
+                                for (y in 0 until 8) {
+                                    setRGB(x, y, 0xFFFFFFFF.toInt())
+                                }
+                            }
+                        }
+                        val solidQuadBytes = java.io.ByteArrayOutputStream().apply {
+                            javax.imageio.ImageIO.write(solidQuadImage, "PNG", this)
+                        }.toByteArray()
+                        val encode = "text_${saveFontName}_solid_quad".encodeKey(EncodeManager.EncodeNamespace.TEXTURES)
+                        val name = "$encode.png"
+                        PackGenerator.addTask(imageSaveFolder + name) {
+                            solidQuadBytes
+                        }
+                        textArray += HudTextArray(
+                            name,
+                            jsonArrayOf("█"),
+                            8.0
+                        ) {
+                            7
+                        }
                     }
                 }
                 debug(ConfigManager.DebugLevel.ASSETS, "Finalizing bitmap text $saveName...")

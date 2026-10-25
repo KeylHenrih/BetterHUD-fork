@@ -64,6 +64,7 @@ enum class PackType {
         override fun generate(byteMap: Map<String, ByteArray>): File {
             val file = File(DATA_FOLDER.parentFile, "${ConfigManagerImpl.buildFolderLocation}.zip")
             if (!byteMap.isSameHash(file)) {
+                file.parentFile?.mkdirs()
                 val digest = MessageDigest.getInstance("SHA-1")
                 file.outputStream()
                     .buffered()

@@ -27,6 +27,10 @@ object LayoutManager : BetterHudManager {
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
         workingDirectory.subFolder("layouts").forEachAllYaml(info.sender) { file, s, yamlObject ->
+            val isDebugLayout = file.name.startsWith("debug_probe") || file.name.startsWith("debug_image") || file.name.startsWith("debug_color") || file.name.startsWith("debug-color")
+            if (isDebugLayout && !ConfigManagerImpl.animationDebugProbe && !ConfigManagerImpl.debug()) {
+                return@forEachAllYaml
+            }
             runCatching {
                 layoutMap.putSync("layout") {
                     LayoutGroup(s, info.sender, yamlObject)

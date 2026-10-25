@@ -13,6 +13,7 @@ import kr.toxicity.hud.api.popup.PopupUpdater
 import kr.toxicity.hud.manager.*
 import kr.toxicity.hud.util.*
 import net.kyori.adventure.bossbar.BossBar
+import net.kyori.adventure.text.Component
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.forEach
 
@@ -28,6 +29,27 @@ abstract class HudPlayerImpl : HudPlayer {
     private val popupKey = ConcurrentHashMap<Any, PopupUpdater>()
     private var color: BossBar.Color? = null
     private var enabled = true
+    private var lastSentComponent: Component? = null
+    private var lastSentColor: BossBar.Color? = null
+    private var playerAnimationMode = kr.toxicity.hud.animation.PlayerAnimationMode.AUTO
+
+    fun getPlayerAnimationMode(): kr.toxicity.hud.animation.PlayerAnimationMode = playerAnimationMode
+    fun setPlayerAnimationMode(mode: kr.toxicity.hud.animation.PlayerAnimationMode) {
+        playerAnimationMode = mode
+    }
+
+    fun isClientAnimationEnabled(): Boolean {
+        if (ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.SERVER) return false
+        val isBedrock = BOOTSTRAP.isBedrockPlayer(uuid())
+        return when (playerAnimationMode) {
+            kr.toxicity.hud.animation.PlayerAnimationMode.CLIENT -> true
+            kr.toxicity.hud.animation.PlayerAnimationMode.SERVER -> false
+            kr.toxicity.hud.animation.PlayerAnimationMode.AUTO -> !isBedrock && (ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.CLIENT || ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.HYBRID)
+        }
+    }
+
+    fun getLastSentComponent(): Component? = lastSentComponent
+    fun getLastSentColor(): BossBar.Color? = lastSentColor
     private val pointers: MutableSet<PointedLocation> = OverridableSet(keyMapper = {
         it.name
     })
@@ -83,6 +105,7 @@ abstract class HudPlayerImpl : HudPlayer {
     final override fun getPopupKeyMap(): MutableMap<Any, PopupUpdater> = popupKey
 
     final override fun getTick(): Long = tick
+    override fun worldTime(): Long = tick
     final override fun getVariableMap(): MutableMap<String, String> = variable
     final override fun getHead(): HudPlayerHead = PlayerHeadManager.provideHead(name())
     final override fun isHudEnabled(): Boolean = enabled
@@ -125,6 +148,7 @@ abstract class HudPlayerImpl : HudPlayer {
                 } else compList += comp
             }
         }
+        val targetColor = color ?: ShaderManagerImpl.barColor
         if (compList.isNotEmpty() || additionalComp != null) {
             additionalComp?.let {
                 compList += (-it.width / 2).toSpaceComponent() + it
@@ -135,12 +159,24 @@ abstract class HudPlayerImpl : HudPlayer {
                 comp += (-it.width).toSpaceComponent()
             }
             last = comp.finalizeFont()
-
-            VOLATILE_CODE.showBossBar(this, color ?: ShaderManagerImpl.barColor, comp.component.build().compact())
-        } else VOLATILE_CODE.showBossBar(this, color ?: ShaderManagerImpl.barColor, EMPTY_COMPONENT)
+            val built = comp.component.build().compact()
+            if (built != lastSentComponent || targetColor != lastSentColor) {
+                lastSentComponent = built
+                lastSentColor = targetColor
+                VOLATILE_CODE.showBossBar(this, targetColor, built)
+            }
+        } else {
+            if (lastSentComponent != EMPTY_COMPONENT || targetColor != lastSentColor) {
+                lastSentComponent = EMPTY_COMPONENT
+                lastSentColor = targetColor
+                VOLATILE_CODE.showBossBar(this, targetColor, EMPTY_COMPONENT)
+            }
+        }
     }
 
     override fun reload() {
+        lastSentComponent = null
+        lastSentColor = null
         autoSave.restart()
         locationProvide.restart()
         startTick()
@@ -160,10 +196,13 @@ abstract class HudPlayerImpl : HudPlayer {
     }
 
     final override fun cancel() {
+        lastSentComponent = null
+        lastSentColor = null
         popupGroup.forEach {
             it.value.clear()
         }
         VOLATILE_CODE.removeBossBar(this)
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
         cancelTick()
         autoSave.cancel()
         locationProvide.cancel()

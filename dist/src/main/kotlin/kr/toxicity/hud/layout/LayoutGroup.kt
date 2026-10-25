@@ -44,6 +44,6 @@ class LayoutGroup(
     } ?: emptyList()
 
     val animation = section["animations"]?.asObject()?.let { animations ->
-        AnimationLocation(animations)
+        AnimationLocation(animations, "layout/$id")
     } ?: AnimationLocation.zero
 }
