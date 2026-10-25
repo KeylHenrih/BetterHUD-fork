@@ -48,12 +48,17 @@ void main() {
     vec3 color = Color.xyz;
     applyColor = 0;
     vertexColor = Color;
+    #GenerateOtherStartMethod
     if (pos.y >= ui.y && ProjMat[3].x == -1) {
         int bit = int(pos.y) >> HEIGHT_BIT;
 
         if (((bit >> MAX_BIT) & 1) == 1) {
 
             int id = bit - (1 << MAX_BIT);
+
+            if (pos.x < -10000.0) {
+                pos.x += 0.25 * float((bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET);
+            }
 
             pos.x -= 0.5 * ui.x;
             pos.y -= (bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET;
