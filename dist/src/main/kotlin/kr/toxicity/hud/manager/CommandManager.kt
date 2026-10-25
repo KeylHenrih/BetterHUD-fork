@@ -741,7 +741,7 @@ object CommandManager : BetterHudManager {
                     if (PlayerManagerImpl.getHudPlayer(uuid) == null) {
                         clearHeldPopups(uuid)
                     } else {
-                        map.values.removeIf { !it.update() }
+                        map.values.removeIf { !it.keepAlive() }
                     }
                 }
             }

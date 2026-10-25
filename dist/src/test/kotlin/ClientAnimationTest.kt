@@ -1850,6 +1850,64 @@ class ClientAnimationTest {
     }
 
     @Test
+    fun testPopupLifecycleParityAndHoldSimulation() {
+        val D = 20
+        val M = 120
+        val L = 0
+
+        fun evalServer(tick: Long): Triple<Double, Double, Double> {
+            val clamped = tick.coerceIn(0L, D.toLong())
+            val progress = clamped.toDouble() / D
+            return Triple(0.0, -20.0 * progress, 1.0 - 0.5 * progress)
+        }
+
+        fun evalClient(worldTime: Long, spawnTime: Long, isHeld: Boolean): Triple<Double, Double, Double>? {
+            val currentElapsed = (worldTime - spawnTime).toInt()
+            val safeWindow = M - L
+            val animDuration = D
+            val isPastAnim = currentElapsed >= animDuration
+            val effectiveBaseTick = if (isPastAnim) worldTime - animDuration else spawnTime
+            val effectiveElapsed = (worldTime - effectiveBaseTick).toInt()
+            if (effectiveElapsed >= safeWindow) return null
+            val t = effectiveElapsed.coerceIn(0, animDuration).toDouble()
+            val progress = t / D
+            return Triple(0.0, -20.0 * progress, 1.0 - 0.5 * progress)
+        }
+
+        // Subtest 1: 100-frame time simulation with re-triggers at ticks 15, 35, 70
+        var serverTick = 0L
+        var clientSpawnTime = 0L
+        for (worldTime in 0L..100L) {
+            if (worldTime == 15L || worldTime == 35L || worldTime == 70L) {
+                // Re-triggering popup updates both server tick and client spawn time
+                serverTick = 0L
+                clientSpawnTime = worldTime
+            }
+            val (sx, sy, sop) = evalServer(serverTick)
+            val clientRes = evalClient(worldTime, clientSpawnTime, isHeld = false)
+            assertNotNull(clientRes, "Client popup must not be null at tick $worldTime")
+            val (cx, cy, cop) = clientRes!!
+            assertEquals(sx, cx, 0.5, "X parity at tick $worldTime")
+            assertEquals(sy, cy, 0.5, "Y parity at tick $worldTime")
+            assertEquals(sop, cop, 0.02, "Opacity parity at tick $worldTime")
+            serverTick++
+        }
+
+        // Subtest 2: /hud debug-popup ... hold simulation
+        // Hold uses keepAlive() which keeps the popup alive without re-triggering spawn time
+        val holdSpawnTime = 0L
+        for (worldTime in 0L..100L) {
+            val clientRes = evalClient(worldTime, holdSpawnTime, isHeld = true)
+            assertNotNull(clientRes, "Held popup must remain visible past safeWindow (tick $worldTime)")
+            val (_, cy, cop) = clientRes!!
+            if (worldTime >= D) {
+                assertEquals(-20.0, cy, 0.001, "Held popup must freeze at final Y frame")
+                assertEquals(0.5, cop, 0.001, "Held popup must freeze at final opacity frame")
+            }
+        }
+    }
+
+    @Test
     fun testClientExactCachingAndBenchmark() {
         val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
         val text30Chars = mm.deserialize("<gold>Damage dealt: <red>-1,250 HP critical!</red></gold>")

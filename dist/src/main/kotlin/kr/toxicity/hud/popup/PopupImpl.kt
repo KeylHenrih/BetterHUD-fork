@@ -241,6 +241,8 @@ class PopupImpl(
         if (!buildCondition(player)) return null
         var updater = {
         }
+        var keepAlive = {
+        }
         var cond = {
             buildCondition(player)
         }
@@ -249,6 +251,11 @@ class PopupImpl(
             val old = cond
             var i = 0
             val old2 = updater
+            val oldKeepAlive = keepAlive
+            keepAlive = {
+                i = 0
+                oldKeepAlive()
+            }
             updater = {
                 i = 0
                 iteratorRef?.resetSpawnTime(player.worldTime())
@@ -290,6 +297,11 @@ class PopupImpl(
             override fun update(): Boolean {
                 if (iterator.markedAsRemoval()) return false
                 updater()
+                return true
+            }
+            override fun keepAlive(): Boolean {
+                if (iterator.markedAsRemoval()) return false
+                keepAlive()
                 return true
             }
             override fun remove() {

@@ -38,6 +38,7 @@ class PopupIteratorImpl(
     override fun getSpawnTime(): Long = spawnTime
     override fun resetSpawnTime(spawnTime: Long) {
         this.spawnTime = spawnTime
+        this.tick = 0L
     }
 
     private val valueMap = run {

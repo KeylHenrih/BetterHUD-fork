@@ -108,12 +108,16 @@ class PopupLayout(
                 Runner {
                     val baseTick = iterator?.spawnTime?.takeIf { it > 0L } ?: player.worldTime()
                     val currentElapsed = (player.worldTime() - baseTick).toInt()
+                    val animDuration = effectiveClientAnim?.duration ?: 0
+                    val isPastAnim = effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && currentElapsed >= animDuration
+                    val effectiveBaseTick = if (isPastAnim) player.worldTime() - animDuration else baseTick
+                    val effectiveElapsed = (player.worldTime() - effectiveBaseTick).toInt()
                     val safeWindow = layoutM - kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadMax
-                    if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && currentElapsed >= safeWindow) {
+                    if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && effectiveElapsed >= safeWindow) {
                         return@Runner EMPTY_WIDTH_COMPONENT
                     }
                     val lookahead = (player.ping() / 100.0).roundToInt().coerceIn(0, kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadMax)
-                    val startTick = baseTick + lookahead
+                    val startTick = effectiveBaseTick + lookahead
                     val tStartByte = if (effectiveClientAnim?.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
                         ((startTick % layoutM).toInt()).coerceIn(0, layoutM - 1)
                     } else null

@@ -11,6 +11,14 @@ public interface PopupUpdater {
     boolean update();
 
     /**
+     * Keeps this popup alive without restarting its entrance animation.
+     * @return whether keep alive succeeded
+     */
+    default boolean keepAlive() {
+        return update();
+    }
+
+    /**
      * Gets index.
      * @return index
      */
