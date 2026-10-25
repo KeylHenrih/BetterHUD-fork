@@ -27,6 +27,7 @@ import kr.toxicity.hud.util.HUD_MAX_BIT
 import kr.toxicity.hud.util.HUD_ADD_HEIGHT
 import kr.toxicity.hud.util.toSemver
 import kr.toxicity.hud.text.applyClientExact
+import kr.toxicity.hud.text.applyClientExactDual
 import kr.toxicity.hud.text.applyClientDualRole
 import kr.toxicity.hud.text.DualCopyRole
 import net.kyori.adventure.text.TextComponent
@@ -1705,5 +1706,34 @@ class ClientAnimationTest {
         val newTracker = kr.toxicity.hud.animation.ListenerTracker(20, EasingType.LINEAR)
         newTracker.update(0.5, 200L)
         assertEquals(200L, newTracker.startTickVal, "New tracker must anchor to World 2 time")
+    }
+
+    @Test
+    fun testClientExactCachingAndBenchmark() {
+        val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+        val text30Chars = mm.deserialize("<gold>Damage dealt: <red>-1,250 HP critical!</red></gold>")
+        val widthComp = WidthComponent(Component.text().append(text30Chars), 150)
+        val tStart = 5
+        val M = 30
+
+        // Call 1: Populates cache
+        val res1 = widthComp.applyClientExactDual(tStart, M)
+
+        // Call 2: Must be a cache hit (same reference or equal)
+        val res2 = widthComp.applyClientExactDual(tStart, M)
+        assertSame(res1, res2, "Subsequent calls with identical inputs MUST return cached WidthComponent instance")
+
+        // Benchmark: 100 players * 20 ticks = 2,000 calls
+        val iterations = 2000
+        val startTime = System.nanoTime()
+        var lastRes: WidthComponent? = null
+        for (i in 1..iterations) {
+            lastRes = widthComp.applyClientExactDual(tStart, M)
+        }
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0
+        assertSame(res1, lastRes)
+
+        // 2,000 cached lookups should execute in well under 15ms (typically < 2ms)
+        assertTrue(elapsedMs < 100.0, "2,000 cached evaluations took ${elapsedMs}ms, must be < 100ms")
     }
 }

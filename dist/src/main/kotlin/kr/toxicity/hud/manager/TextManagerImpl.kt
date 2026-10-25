@@ -235,6 +235,7 @@ object TextManagerImpl : BetterHudManager, TextManager {
         textWidthMap.clear()
         textKeyMap.clear()
         textCacheMap.clear()
+        kr.toxicity.hud.text.clearExactTextCache()
     }
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {

@@ -207,11 +207,30 @@ fun Component.applyClientExact(
     }
 }
 
+private const val EXACT_CACHE_MAX_SIZE = 2048
+private val exactDualCache = java.util.concurrent.ConcurrentHashMap<ExactDualCacheKey, WidthComponent>()
+private val exactSingleCache = java.util.concurrent.ConcurrentHashMap<ExactSingleCacheKey, WidthComponent>()
+
+data class ExactDualCacheKey(val component: Component, val tStartByte: Int, val moduloM: Int)
+data class ExactSingleCacheKey(val component: Component, val tStartByte: Int)
+
+fun clearExactTextCache() {
+    exactDualCache.clear()
+    exactSingleCache.clear()
+}
+
 fun WidthComponent.applyClientExact(tStartByte: Int): WidthComponent {
     val built = component.build()
+    val key = ExactSingleCacheKey(built, tStartByte)
+    exactSingleCache[key]?.let { return it }
+
     val transformed = built.applyClientExact(tStartByte)
     val builder = if (transformed is TextComponent) transformed.toBuilder() else Component.text().append(transformed)
-    return WidthComponent(builder, width)
+    val result = WidthComponent(builder, width)
+
+    if (exactSingleCache.size >= EXACT_CACHE_MAX_SIZE) exactSingleCache.clear()
+    exactSingleCache[key] = result
+    return result
 }
 
 fun PixelComponent.applyClientExact(tStartByte: Int): PixelComponent {
@@ -228,23 +247,30 @@ fun WidthComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): WidthCom
     if (!built.hasAnyShadow()) {
         return applyClientExact(tStartByte)
     }
+    val key = ExactDualCacheKey(built, tStartByte, moduloM)
+    exactDualCache[key]?.let { return it }
+
     val copyShadow = built.applyClientDualRole(DualCopyRole.SHADOW, tStartByte, moduloM)
     val copyText = built.applyClientDualRole(DualCopyRole.TEXT, tStartByte, moduloM)
     val advance = calculateClientAdvance(this)
-    if (advance <= 0) {
+    val result = if (advance <= 0) {
         val builder = if (copyText is TextComponent) copyText.toBuilder() else Component.text().append(copyText)
-        return WidthComponent(builder, width)
+        WidthComponent(builder, width)
+    } else {
+        val backstep = (-advance).toSpaceComponent(-width).finalizeFont()
+        val shadowWidthComp = WidthComponent(
+            if (copyShadow is TextComponent) copyShadow.toBuilder() else Component.text().append(copyShadow),
+            width
+        )
+        val textWidthComp = WidthComponent(
+            if (copyText is TextComponent) copyText.toBuilder() else Component.text().append(copyText),
+            width
+        )
+        shadowWidthComp + backstep + textWidthComp
     }
-    val backstep = (-advance).toSpaceComponent(-width).finalizeFont()
-    val shadowWidthComp = WidthComponent(
-        if (copyShadow is TextComponent) copyShadow.toBuilder() else Component.text().append(copyShadow),
-        width
-    )
-    val textWidthComp = WidthComponent(
-        if (copyText is TextComponent) copyText.toBuilder() else Component.text().append(copyText),
-        width
-    )
-    return shadowWidthComp + backstep + textWidthComp
+    if (exactDualCache.size >= EXACT_CACHE_MAX_SIZE) exactDualCache.clear()
+    exactDualCache[key] = result
+    return result
 }
 
 fun PixelComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): PixelComponent {
