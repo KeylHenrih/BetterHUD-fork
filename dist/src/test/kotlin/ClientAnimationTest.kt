@@ -1907,4 +1907,33 @@ class ClientAnimationTest {
         assertEquals(5, ConfigManagerImpl.animationLookaheadMax)
         assertEquals(1.0, ConfigManagerImpl.animationDebugSlowmo)
     }
+
+    @Test
+    fun testShaderLayoutSlotOverflow() {
+        val gui = GuiLocation(0.0, 0.0)
+        val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
+        val maxLayouts = (1 shl HUD_MAX_BIT) - 1 // 1023
+
+        val assignedIds = mutableListOf<Int>()
+        val dummyConsumer: (Int) -> Unit = { assignedIds.add(it) }
+
+        // Create 1025 shaders (1023 valid + 2 overflowing)
+        val testShaders = LinkedHashMap<HudShader, List<(Int) -> Unit>>()
+        for (i in 1..1025) {
+            val shader = HudShader(gui, scale, layer = i, outline = 0, opacity = 1.0, property = 0)
+            testShaders[shader] = listOf(dummyConsumer)
+        }
+
+        val layout = ShaderManagerImpl.generateShaderLayout(testShaders)
+
+        // Must not contain case 1024 or higher
+        assertFalse(layout.any { it.contains("case 1024:") }, "Layout must not contain case 1024: overflow slots must be omitted")
+        assertFalse(layout.any { it.contains("case 1025:") }, "Layout must not contain case 1025: overflow slots must be omitted")
+
+        // Overflown shaders must fall back to id 0 (static rendering without bit corruption)
+        assertEquals(1025, assignedIds.size)
+        assertEquals(1023, assignedIds[1022], "Slot 1023 must get id 1023")
+        assertEquals(0, assignedIds[1023], "Slot 1024 must fall back to 0")
+        assertEquals(0, assignedIds[1024], "Slot 1025 must fall back to 0")
+    }
 }
