@@ -175,6 +175,16 @@ class FabricBootstrapImpl : ModBootstrap, DedicatedServerModInitializer {
 
     override fun logger(): BetterHudLogger = logger
 
+    override fun isBedrockPlayer(uuid: java.util.UUID): Boolean {
+        return runCatching {
+            val apiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi")
+            val getInstance = apiClass.getMethod("getInstance")
+            val instance = getInstance.invoke(null)
+            val isFloodgatePlayer = apiClass.getMethod("isFloodgatePlayer", java.util.UUID::class.java)
+            isFloodgatePlayer.invoke(instance, uuid) as? Boolean ?: false
+        }.getOrDefault(false)
+    }
+
     override fun dataFolder(): File = dataFolder
 
     override fun console(): Audience {

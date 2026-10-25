@@ -372,7 +372,11 @@ object CommandManager : BetterHudManager {
                     me.info("Player '${player.name()}' animation mode is $current (effective: ${if (impl?.isClientAnimationEnabled() == true) "CLIENT" else "SERVER"}).")
                     return
                 }
-                (player as? HudPlayerImpl)?.setPlayerAnimationMode(newMode)
+                (player as? HudPlayerImpl)?.let { p ->
+                    p.setPlayerAnimationMode(newMode)
+                    kr.toxicity.hud.image.enums.ImageType.removeTrackers(p.uuid())
+                    p.reload()
+                }
                 me.info("Set animation mode for '${player.name()}' to $newMode.")
             }
         }).children("hud") {

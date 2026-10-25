@@ -178,6 +178,18 @@ class VelocityBootstrapImpl @Inject constructor(
     }
 
     override fun logger(): BetterHudLogger = log
+
+    override fun isBedrockPlayer(uuid: java.util.UUID): Boolean {
+        return if (proxyServer.pluginManager.isLoaded("floodgate")) {
+            runCatching {
+                val apiClass = Class.forName("org.geysermc.floodgate.api.FloodgateApi")
+                val getInstance = apiClass.getMethod("getInstance")
+                val instance = getInstance.invoke(null)
+                val isFloodgatePlayer = apiClass.getMethod("isFloodgatePlayer", java.util.UUID::class.java)
+                isFloodgatePlayer.invoke(instance, uuid) as? Boolean ?: false
+            }.getOrDefault(false)
+        } else false
+    }
     override fun dataFolder(): File = File(dataFolder.toFile().parentFile, "BetterHud")
 
 

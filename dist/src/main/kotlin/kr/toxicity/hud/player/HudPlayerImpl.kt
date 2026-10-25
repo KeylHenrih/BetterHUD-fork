@@ -41,10 +41,14 @@ abstract class HudPlayerImpl : HudPlayer {
     fun isClientAnimationEnabled(): Boolean {
         if (ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.SERVER) return false
         val isBedrock = BOOTSTRAP.isBedrockPlayer(uuid())
+        if (isBedrock) return false // Bedrock RenderDragon cannot process Java core shaders
         return when (playerAnimationMode) {
             kr.toxicity.hud.animation.PlayerAnimationMode.CLIENT -> true
             kr.toxicity.hud.animation.PlayerAnimationMode.SERVER -> false
-            kr.toxicity.hud.animation.PlayerAnimationMode.AUTO -> !isBedrock && (ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.CLIENT || ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.HYBRID)
+            kr.toxicity.hud.animation.PlayerAnimationMode.AUTO -> {
+                ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.CLIENT ||
+                ConfigManagerImpl.animationMode == kr.toxicity.hud.animation.AnimationMode.HYBRID
+            }
         }
     }
 

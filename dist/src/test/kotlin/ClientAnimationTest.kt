@@ -25,6 +25,7 @@ import kr.toxicity.hud.util.applyColor
 import kr.toxicity.hud.util.HUD_DEFAULT_BIT
 import kr.toxicity.hud.util.HUD_MAX_BIT
 import kr.toxicity.hud.util.HUD_ADD_HEIGHT
+import kr.toxicity.hud.util.toSemver
 import java.io.File
 import kotlin.math.roundToInt
 import org.junit.jupiter.api.Assertions.*
@@ -1388,5 +1389,99 @@ class ClientAnimationTest {
                 assertEquals(xLayout + charWidth + 1.0f, outX3, 1e-3f, "Top-right vertex X must match xLayout + width + 1.0 for y=$y, id=$id")
             }
         }
+    }
+
+    @Test
+    fun testVersionParsingAndSemverCoerce() {
+        val ver1 = "2.2.0-fork.1".toSemver()
+        assertNotNull(ver1)
+        assertEquals(2, ver1.major)
+        assertEquals(2, ver1.minor)
+        assertEquals(0, ver1.patch)
+        assertEquals("fork.1", ver1.preRelease.joinToString("."))
+
+        val ver2 = "2.2.0-fork.2".toSemver()
+        assertNotNull(ver2)
+        assertEquals(2, ver2.major)
+        assertEquals(2, ver2.minor)
+        assertEquals(0, ver2.patch)
+        assertEquals("fork.2", ver2.preRelease.joinToString("."))
+
+        assertTrue(ver1 < ver2, "fork.1 must be less than fork.2")
+    }
+
+    @Test
+    fun testBedrockPlayerAnimationModeSafety() {
+        var bedrockFlag = false
+        val mockVolatile = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.volatilecode.VolatileCodeHandler::class.java)
+        ) { _, _, _ -> null } as kr.toxicity.hud.api.volatilecode.VolatileCodeHandler
+
+        val mockScheduler = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.scheduler.HudScheduler::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.scheduler.HudScheduler::class.java)
+        ) { _, _, _ ->
+            java.lang.reflect.Proxy.newProxyInstance(
+                kr.toxicity.hud.api.scheduler.HudTask::class.java.classLoader,
+                arrayOf(kr.toxicity.hud.api.scheduler.HudTask::class.java)
+            ) { _, _, _ -> null }
+        } as kr.toxicity.hud.api.scheduler.HudScheduler
+
+        val mockBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "isBedrockPlayer" -> bedrockFlag
+                "volatileCode" -> mockVolatile
+                "scheduler" -> mockScheduler
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+
+        val mockHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> mockBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+
+        val mainField = kr.toxicity.hud.api.BetterHudAPI::class.java.getDeclaredField("main")
+        mainField.isAccessible = true
+        mainField.set(null, mockHud)
+
+        val playerUuid = java.util.UUID.randomUUID()
+        val dummyPlayer = object : kr.toxicity.hud.player.HudPlayerImpl() {
+            override fun updatePlaceholder() {}
+            override fun uuid(): java.util.UUID = playerUuid
+            override fun name(): String = "TestPlayer"
+            override fun audience(): net.kyori.adventure.audience.Audience = net.kyori.adventure.audience.Audience.empty()
+            override fun hasPermission(perm: String): Boolean = true
+            override fun locale(): java.util.Locale = java.util.Locale.ENGLISH
+            override fun location(): kr.toxicity.hud.api.adapter.LocationWrapper = throw UnsupportedOperationException()
+            override fun world(): kr.toxicity.hud.api.adapter.WorldWrapper = throw UnsupportedOperationException()
+            override fun handle(): Any = this
+        }
+
+        val modeField = ConfigManagerImpl::class.java.getDeclaredField("animationMode")
+        modeField.isAccessible = true
+        modeField.set(ConfigManagerImpl, kr.toxicity.hud.animation.AnimationMode.HYBRID)
+
+        // Case 1: Java player with HYBRID mode -> client animation enabled
+        bedrockFlag = false
+        dummyPlayer.setPlayerAnimationMode(kr.toxicity.hud.animation.PlayerAnimationMode.AUTO)
+        assertTrue(dummyPlayer.isClientAnimationEnabled(), "Java player in HYBRID mode must enable client animation")
+
+        // Case 2: Bedrock player in HYBRID mode -> MUST be disabled
+        bedrockFlag = true
+        assertFalse(dummyPlayer.isClientAnimationEnabled(), "Bedrock player in HYBRID mode must NEVER enable client animation")
+
+        // Case 3: Bedrock player with explicit CLIENT mode -> MUST STILL be disabled (Bedrock shaders not supported)
+        dummyPlayer.setPlayerAnimationMode(kr.toxicity.hud.animation.PlayerAnimationMode.CLIENT)
+        assertFalse(dummyPlayer.isClientAnimationEnabled(), "Bedrock player with explicit CLIENT mode must NEVER enable client animation")
     }
 }
