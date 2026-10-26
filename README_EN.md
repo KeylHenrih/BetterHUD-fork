@@ -156,7 +156,7 @@ cd BetterHUD-fork
 # Build Bukkit/Paper shadow jar
 ./gradlew :bootstrap:bukkit:shadowJar
 
-# Output jar: build/libs/BetterHud-bukkit-2.2.0-fork.1.jar
+# Output jar: build/libs/BetterHud-bukkit-2.2.0-fork.3.jar
 ```
 
 ---
