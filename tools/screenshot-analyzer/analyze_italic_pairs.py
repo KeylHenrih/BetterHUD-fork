@@ -14,6 +14,10 @@ Modes:
   2. BetterHud verification:
      python3 analyze_italic_pairs.py <screenshot.png> --scale <2|3> [--ref-json vanilla_ref.json]
      Measures pairs across rows, compares against Delta_vanilla, and outputs a verification table with PASS/FAIL.
+
+  3. Synthetic test validation:
+     python3 analyze_italic_pairs.py --test-synthetic
+     Validates the analyzer algorithms against BakedSheetGlyph mathematical geometry (scales 2 and 3).
 """
 
 import sys
@@ -38,45 +42,56 @@ def extract_color_mask(img_np, target_hex, tolerance=40.0):
 
 def find_connected_components(mask, min_pixels=8):
     """
-    Finds bounding boxes and pixel coordinates of connected components in binary mask.
+    Finds bounding boxes and pixel coordinates of connected components in binary mask
+    using pure Python / NumPy BFS (zero external scipy dependency).
     """
-    from scipy.ndimage import label, find_objects
-    labeled_array, num_features = label(mask)
+    visited = np.zeros_like(mask, dtype=bool)
     components = []
     
-    slices = find_objects(labeled_array)
-    for idx, sl in enumerate(slices):
-        comp_mask = (labeled_array[sl] == (idx + 1))
-        pixel_count = np.count_nonzero(comp_mask)
-        if pixel_count < min_pixels:
+    ys, xs = np.where(mask)
+    for y, x in zip(ys, xs):
+        if visited[y, x]:
+            continue
+        # BFS traversal
+        q = [(y, x)]
+        visited[y, x] = True
+        comp_y = []
+        comp_x = []
+        while q:
+            cy, cx = q.pop()
+            comp_y.append(cy)
+            comp_x.append(cx)
+            for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                ny, nx = cy + dy, cx + dx
+                if 0 <= ny < mask.shape[0] and 0 <= nx < mask.shape[1]:
+                    if mask[ny, nx] and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        q.append((ny, nx))
+                        
+        if len(comp_y) < min_pixels:
             continue
             
-        y_slice, x_slice = sl
-        y_indices, x_indices = np.where(comp_mask)
-        abs_y = y_indices + y_slice.start
-        abs_x = x_indices + x_slice.start
+        comp_y = np.array(comp_y)
+        comp_x = np.array(comp_x)
+        y_min, y_max = int(comp_y.min()), int(comp_y.max())
+        x_min, x_max = int(comp_x.min()), int(comp_x.max())
         
-        y_min, y_max = abs_y.min(), abs_y.max()
-        x_min, x_max = abs_x.min(), abs_x.max()
-        
-        # Mean X of topmost row
-        top_row_x = abs_x[abs_y == y_min]
-        top_x = float(np.mean(top_row_x))
-        
-        # Mean X of bottommost row
-        bottom_row_x = abs_x[abs_y == y_max]
-        bottom_x = float(np.mean(bottom_row_x))
+        # Exact edge coordinates (top row and bottom row)
+        top_row_x = comp_x[comp_y == y_min]
+        bot_row_x = comp_x[comp_y == y_max]
+        top_x = float(np.min(top_row_x))
+        bottom_x = float(np.min(bot_row_x))
         
         components.append({
-            'y_min': int(y_min),
-            'y_max': int(y_max),
-            'x_min': int(x_min),
-            'x_max': int(x_max),
+            'y_min': y_min,
+            'y_max': y_max,
+            'x_min': x_min,
+            'x_max': x_max,
             'top_x': top_x,
             'bottom_x': bottom_x,
             'height': int(y_max - y_min + 1),
             'width': int(x_max - x_min + 1),
-            'pixel_count': int(pixel_count)
+            'pixel_count': len(comp_y)
         })
         
     return components
@@ -88,41 +103,31 @@ def find_glyph_bounds(mask):
     y_indices, x_indices = np.where(mask)
     if len(y_indices) == 0:
         return None
-    y_min, y_max = y_indices.min(), y_indices.max()
-    x_min, x_max = x_indices.min(), x_indices.max()
+    y_min, y_max = int(y_indices.min()), int(y_indices.max())
+    x_min, x_max = int(x_indices.min()), int(x_indices.max())
     
     top_row_x = x_indices[y_indices == y_min]
-    top_x = float(np.mean(top_row_x))
+    top_x = float(np.min(top_row_x))
     
     bottom_row_x = x_indices[y_indices == y_max]
-    bottom_x = float(np.mean(bottom_row_x))
+    bottom_x = float(np.min(bottom_row_x))
     
     return {
-        'y_min': int(y_min),
-        'y_max': int(y_max),
-        'x_min': int(x_min),
-        'x_max': int(x_max),
+        'y_min': y_min,
+        'y_max': y_max,
+        'x_min': x_min,
+        'x_max': x_max,
         'top_x': top_x,
         'bottom_x': bottom_x,
         'height': int(y_max - y_min + 1),
-        'width': int(x_max - x_min + 1)
+        'width': int(x_max - x_min + 1),
+        'pixel_count': len(y_indices)
     }
 
-def analyze_pair(regular_bounds_or_mask, italic_bounds_or_mask, nominal_spacing_gui=20.0, gui_scale=3, ref_top=1.0, ref_bottom=-1.0):
+def analyze_pair(reg_bounds, italic_bounds, nominal_spacing_gui=20.0, gui_scale=3, ref_top=1.0, ref_bottom=-1.0):
     """
     Measures Delta_top and Delta_bottom for a single pair of Regular and Italic glyphs.
-    Can accept either pre-computed bounds dicts or binary numpy masks.
     """
-    if isinstance(regular_bounds_or_mask, dict):
-        reg_bounds = regular_bounds_or_mask
-    else:
-        reg_bounds = find_glyph_bounds(regular_bounds_or_mask)
-        
-    if isinstance(italic_bounds_or_mask, dict):
-        italic_bounds = italic_bounds_or_mask
-    else:
-        italic_bounds = find_glyph_bounds(italic_bounds_or_mask)
-    
     if reg_bounds is None or italic_bounds is None:
         return None
     
@@ -144,6 +149,8 @@ def analyze_pair(regular_bounds_or_mask, italic_bounds_or_mask, nominal_spacing_
     return {
         'delta_top': delta_top,
         'delta_bottom': delta_bottom,
+        'dx_top_px': dx_top_px,
+        'dx_bottom_px': dx_bottom_px,
         'ref_top': ref_top,
         'ref_bottom': ref_bottom,
         'err_top': err_top,
@@ -154,17 +161,77 @@ def analyze_pair(regular_bounds_or_mask, italic_bounds_or_mask, nominal_spacing_
         'italic_bounds': italic_bounds
     }
 
+def run_synthetic_tests():
+    """
+    Runs self-test with synthetic BakedSheetGlyph bitmaps at scale 2 and 3.
+    """
+    print("=== RUNNING SYNTHETIC BAKEDSHEETGLYPH TESTS ===")
+    for scale in [2, 3]:
+        h_px = 8 * scale
+        w_px = 8 * scale
+        nominal_gap_gui = 15.0
+        gap_px = int(nominal_gap_gui * scale)
+        
+        # Regular block at (x=10, y=10)
+        reg_x0 = 10
+        reg_y0 = 10
+        reg_bounds = {
+            'y_min': reg_y0,
+            'y_max': reg_y0 + h_px - 1,
+            'x_min': reg_x0,
+            'x_max': reg_x0 + w_px - 1,
+            'top_x': float(reg_x0),
+            'bottom_x': float(reg_x0),
+            'height': h_px,
+            'width': w_px,
+            'pixel_count': h_px * w_px
+        }
+        
+        # Italic block: top shifted right by +1.0 GUI px (+scale px), bottom shifted left by -1.0 GUI px (-scale px)
+        ita_base_x = reg_x0 + gap_px
+        ita_top_x = ita_base_x + scale
+        ita_bot_x = ita_base_x - scale
+        ita_bounds = {
+            'y_min': reg_y0,
+            'y_max': reg_y0 + h_px - 1,
+            'x_min': ita_bot_x,
+            'x_max': ita_top_x + w_px - 1,
+            'top_x': float(ita_top_x),
+            'bottom_x': float(ita_bot_x),
+            'height': h_px,
+            'width': int((ita_top_x + w_px - 1) - ita_bot_x + 1),
+            'pixel_count': h_px * w_px
+        }
+        
+        res = analyze_pair(reg_bounds, ita_bounds, nominal_spacing_gui=nominal_gap_gui, gui_scale=scale)
+        assert res is not None, f"Failed at scale {scale}"
+        assert abs(res['delta_top'] - 1.0) < 1e-4, f"Scale {scale} delta_top mismatch: {res['delta_top']}"
+        assert abs(res['delta_bottom'] - (-1.0)) < 1e-4, f"Scale {scale} delta_bottom mismatch: {res['delta_bottom']}"
+        assert res['verdict'] == "PASS", f"Scale {scale} verdict not PASS"
+        print(f"  [+] GUI Scale {scale}: Delta_top={res['delta_top']:+.3f}, Delta_bottom={res['delta_bottom']:+.3f} -> PASS")
+        
+    print("[+] All synthetic BakedSheetGlyph geometry tests passed successfully!\n")
+
 def main():
     parser = argparse.ArgumentParser(description="Analyze Italic Shear Delta in Minecraft screenshots.")
-    parser.add_argument("screenshot", help="Path to screenshot image")
+    parser.add_argument("screenshot", nargs="?", default=None, help="Path to screenshot image")
     parser.add_argument("--scale", type=int, default=3, choices=[2, 3, 4], help="Minecraft GUI Scale (default: 3)")
     parser.add_argument("--vanilla", action="store_true", help="Vanilla mode: measures reference Delta_top and Delta_bottom from vanilla tellraw")
     parser.add_argument("--save-ref", type=str, default="vanilla_reference.json", help="File to save vanilla reference measurements")
     parser.add_argument("--ref-json", type=str, default=None, help="File to load vanilla reference from")
     parser.add_argument("--ref-top", type=float, default=1.0, help="Explicit reference Delta_top (default: 1.0)")
     parser.add_argument("--ref-bottom", type=float, default=-1.0, help="Explicit reference Delta_bottom (default: -1.0)")
-    parser.add_argument("--spacing", type=float, default=20.0, help="Nominal spacing between pair in GUI pixels")
+    parser.add_argument("--test-synthetic", action="store_true", help="Run self-tests on synthetic BakedSheetGlyph bitmaps")
     args = parser.parse_args()
+
+    if args.test_synthetic:
+        run_synthetic_tests()
+        if not args.screenshot:
+            return
+
+    if not args.screenshot:
+        parser.print_help()
+        sys.exit(1)
 
     if not os.path.exists(args.screenshot):
         print(f"Error: Screenshot '{args.screenshot}' not found.")
@@ -178,32 +245,37 @@ def main():
     blue_mask = extract_color_mask(img_np, "#3498DB", tolerance=45.0)
     red_mask = extract_color_mask(img_np, "#E74C3C", tolerance=45.0)
 
-    try:
-        blue_comps = find_connected_components(blue_mask, min_pixels=6 * args.scale)
-        red_comps = find_connected_components(red_mask, min_pixels=6 * args.scale)
-    except ImportError:
-        # Fallback if scipy is not installed
-        print("[-] Note: scipy not found, performing full-mask analysis.")
-        blue_bounds = find_glyph_bounds(blue_mask)
-        red_bounds = find_glyph_bounds(red_mask)
-        blue_comps = [blue_bounds] if blue_bounds else []
-        red_comps = [red_bounds] if red_bounds else []
+    blue_comps = find_connected_components(blue_mask, min_pixels=6 * args.scale)
+    red_comps = find_connected_components(red_mask, min_pixels=6 * args.scale)
 
-    print(f"[+] Detected glyph candidates: {len(blue_comps)} regular (Blue), {len(red_comps)} italic (Red)")
+    # Filter candidates for solid probe glyphs (height around 8 * scale)
+    solid_blue = [c for c in blue_comps if abs(c["height"] - 8 * args.scale) <= 2 and c["width"] >= 6 * args.scale]
+    solid_red = [c for c in red_comps if abs(c["height"] - 8 * args.scale) <= 2 and c["width"] >= 6 * args.scale]
+    
+    # Fallback to all components if no solid glyphs found
+    b_pool = solid_blue if len(solid_blue) > 0 else blue_comps
+    r_pool = solid_red if len(solid_red) > 0 else red_comps
 
-    if len(blue_comps) == 0 or len(red_comps) == 0:
+    print(f"[+] Detected glyph candidates: {len(b_pool)} regular (Blue), {len(r_pool)} italic (Red)")
+
+    if len(b_pool) == 0 or len(r_pool) == 0:
         print("[-] No matching glyph pairs found. Check that colors #3498DB (Blue) and #E74C3C (Red) are visible.")
         sys.exit(1)
 
-    # If --ref-json is provided, load references from it
+    # If --ref-json is provided, load references and enforce GUI scale matching
     ref_top = args.ref_top
     ref_bottom = args.ref_bottom
     if args.ref_json and os.path.exists(args.ref_json):
         with open(args.ref_json, 'r') as f:
             ref_data = json.load(f)
+            ref_scale = ref_data.get("gui_scale")
+            if ref_scale is not None and ref_scale != args.scale:
+                print(f"[-] ERROR: GUI Scale mismatch! Reference was measured at scale {ref_scale}, but analyzer requested scale {args.scale}.")
+                print(f"[-] Please run with --scale {ref_scale} to match reference.")
+                sys.exit(1)
             ref_top = float(ref_data.get("delta_vanilla_top", ref_top))
             ref_bottom = float(ref_data.get("delta_vanilla_bottom", ref_bottom))
-            print(f"[+] Loaded vanilla reference from {args.ref_json}: top={ref_top:+.3f}, bottom={ref_bottom:+.3f}")
+            print(f"[+] Loaded vanilla reference from {args.ref_json}: top={ref_top:+.3f}, bottom={ref_bottom:+.3f} (GUI Scale: {ref_scale})")
 
     # Pair each blue glyph with the nearest red glyph on the same row (within 4 GUI pixels vertically)
     max_y_diff = 4 * args.scale
@@ -211,11 +283,11 @@ def main():
     used_red = set()
 
     # Sort top to bottom
-    blue_comps.sort(key=lambda c: c['y_min'])
-    for b in blue_comps:
+    b_pool.sort(key=lambda c: c['y_min'])
+    for b in b_pool:
         best_r = None
         best_dist = float('inf')
-        for r_idx, r in enumerate(red_comps):
+        for r_idx, r in enumerate(r_pool):
             if r_idx in used_red:
                 continue
             if abs(b['y_min'] - r['y_min']) <= max_y_diff:
@@ -232,32 +304,30 @@ def main():
     print(f"[+] Paired {len(pairs)} rows.")
 
     if args.vanilla:
-        # Measure reference from vanilla screenshot
         vanilla_results = []
         for idx, (b, r) in enumerate(pairs):
             dx_top = (r['top_x'] - b['top_x']) / float(args.scale)
             dx_bottom = (r['bottom_x'] - b['bottom_x']) / float(args.scale)
-            # In tellraw with 5 spaces, gap is known; difference between top and bottom gives exact slant!
             slant = dx_top - dx_bottom
             midline = (dx_top + dx_bottom) / 2.0
             vanilla_results.append({
                 'row': idx + 1,
+                'raw_reg': f"{b['top_x']:.1f} / {b['bottom_x']:.1f}",
+                'raw_ita': f"{r['top_x']:.1f} / {r['bottom_x']:.1f}",
                 'dx_top': dx_top,
                 'dx_bottom': dx_bottom,
                 'slant': slant,
                 'midline': midline
             })
         
-        # Calculate mean top and bottom shear
         mean_slant = float(np.mean([res['slant'] for res in vanilla_results]))
-        # Vanilla formula gives slant = 2.00 px (top = +1.00, bottom = -1.00)
         measured_top = mean_slant / 2.0
         measured_bottom = -mean_slant / 2.0
 
         print("\n=== VANILLA SCREEN REFERENCE MEASUREMENTS ===")
         print(f"Detected {len(pairs)} reference row(s):")
         for res in vanilla_results:
-            print(f"  Row {res['row']}: dx_top={res['dx_top']:.3f} px, dx_bottom={res['dx_bottom']:.3f} px, slant={res['slant']:.3f} px")
+            print(f"  Row {res['row']}: Reg[{res['raw_reg']}] Ita[{res['raw_ita']}] | dx_top={res['dx_top']:.3f} px, dx_bottom={res['dx_bottom']:.3f} px, slant={res['slant']:.3f} px")
         print(f"\nMeasured Vanilla Reference:")
         print(f"  Delta_vanilla_top    = {measured_top:+.3f} GUI px")
         print(f"  Delta_vanilla_bottom = {measured_bottom:+.3f} GUI px")
@@ -268,7 +338,8 @@ def main():
             "delta_vanilla_top": measured_top,
             "delta_vanilla_bottom": measured_bottom,
             "total_slant": mean_slant,
-            "rows_measured": len(vanilla_results)
+            "rows_measured": len(vanilla_results),
+            "screenshot": os.path.abspath(args.screenshot)
         }
         with open(args.save_ref, 'w') as f:
             json.dump(ref_output, f, indent=2)
@@ -276,21 +347,20 @@ def main():
         return
 
     # BetterHud verification mode
-    print("\n" + "=" * 90)
+    print("\n" + "=" * 120)
     print(f"  BETTERHUD CLIENT ITALIC VERIFICATION TABLE (Tolerance: +/-0.25 GUI-px)")
     print(f"  Reference: Delta_vanilla_top = {ref_top:+.2f} px, Delta_vanilla_bottom = {ref_bottom:+.2f} px")
-    print("=" * 90)
-    header = f"| {'Row':^5} | {'Y (approx)':^10} | {'Delta_top':^11} | {'Delta_bottom':^12} | {'Err_top':^9} | {'Err_bot':^9} | {'Max Err':^9} | {'Verdict':^7} |"
-    sep = f"|{'-'*7}|{'-'*12}|{'-'*13}|{'-'*14}|{'-'*11}|{'-'*11}|{'-'*11}|{'-'*9}|"
-    print(header)
+    print("=" * 120)
+    col_fmt = "| {:^5} | {:^10} | {:<17} | {:<17} | {:^11} | {:^12} | {:^9} | {:^9} | {:^7} |"
+    sep = f"|{'-'*7}|{'-'*12}|{'-'*19}|{'-'*19}|{'-'*13}|{'-'*14}|{'-'*11}|{'-'*11}|{'-'*9}|"
+    print(col_fmt.format("Row", "Y (approx)", "Raw Reg (top/bot)", "Raw Ita (top/bot)", "Delta_top", "Delta_bottom", "Err_top", "Err_bot", "Verdict"))
     print(sep)
 
     all_passed = True
     for idx, (b, r) in enumerate(pairs):
-        # Dynamically determine nominal spacing from bounds if not fixed
-        measured_spacing_gui = (r['x_min'] - b['x_min']) / float(args.scale)
-        # Round spacing to nearest integer GUI pixels (nominal gap)
-        nominal_spacing = round(measured_spacing_gui)
+        dx_top = (r['top_x'] - b['top_x']) / float(args.scale)
+        dx_bot = (r['bottom_x'] - b['bottom_x']) / float(args.scale)
+        nominal_spacing = round((dx_top + dx_bot) / 2.0)
         
         res = analyze_pair(b, r, nominal_spacing_gui=nominal_spacing, gui_scale=args.scale, ref_top=ref_top, ref_bottom=ref_bottom)
         if res is None:
@@ -298,10 +368,12 @@ def main():
         if res['verdict'] != "PASS":
             all_passed = False
             
-        row_str = f"| {idx+1:^5} | {b['y_min']:^10} | {res['delta_top']:^+11.3f} | {res['delta_bottom']:^+12.3f} | {res['err_top']:^9.3f} | {res['err_bottom']:^9.3f} | {res['max_err']:^9.3f} | {res['verdict']:^7} |"
+        reg_s = f"{b['top_x']:.1f} / {b['bottom_x']:.1f}"
+        ita_s = f"{r['top_x']:.1f} / {r['bottom_x']:.1f}"
+        row_str = col_fmt.format(idx+1, b['y_min'], reg_s, ita_s, f"{res['delta_top']:+.3f}", f"{res['delta_bottom']:+.3f}", f"{res['err_top']:.3f}", f"{res['err_bottom']:.3f}", res['verdict'])
         print(row_str)
 
-    print("=" * 90)
+    print("=" * 120)
     if all_passed:
         print("[+] VERDICT: ALL PAIRS MATCH VANILLA REFERENCE WITHIN 0.25 GUI-PX (PASS)")
     else:

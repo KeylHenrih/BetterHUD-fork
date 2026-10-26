@@ -1,0 +1,16 @@
+# =============================================================
+#   BetterHud — Minimal Italic Test Popup (Upstream & Fork Parity)
+#   Compatible with both upstream BetterHud and fork.
+#   Command: /hud popup show <player> debug_italic_upstream
+# =============================================================
+
+debug_italic_upstream:
+  duration: 1200
+  queue: false
+  push: false
+  layouts:
+    1:
+      name: debug-italic-upstream-layout
+      gui:
+        x: 50
+        y: 50

@@ -363,6 +363,73 @@ animations:
             sb.append("    x: $xPos\n")
             sb.append("    y: ${y + 30}\n")
         }
+
+        // Scale 2.0 Probe Rows
+        sb.append("  pair_scale_2_reg:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    scale: 2.0\n")
+        sb.append("    pattern: \"<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 2.0</white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: -140\n")
+
+        sb.append("  pair_scale_2_bold:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    scale: 2.0\n")
+        sb.append("    pattern: \"<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 2.0 Bold</b></white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: -120\n")
+
+        // Scale 0.5 Probe Rows
+        sb.append("  pair_scale_half_reg:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    scale: 0.5\n")
+        sb.append("    pattern: \"<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 0.5</white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: -160\n")
+
+        sb.append("  pair_scale_half_bold:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    scale: 0.5\n")
+        sb.append("    pattern: \"<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 0.5 Bold</b></white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: -150\n")
+
+        // Bossbar Line 2 Probe Rows
+        sb.append("  pair_line_2_reg:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    line: 2\n")
+        sb.append("    pattern: \"<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Line 2</white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: 80\n")
+
+        sb.append("  pair_line_2_bold:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    line: 2\n")
+        sb.append("    pattern: \"<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Line 2 Bold</b></white>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: 90\n")
+
+        sb.append("  pair_line_2_adv_reg:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    line: 2\n")
+        sb.append("    pattern: \"<color:#3498DB>ABCDEFGHIJ</color><color:#2ECC71>█</color>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: 100\n")
+
+        sb.append("  pair_line_2_adv_ita:\n")
+        sb.append("    name: default_font\n")
+        sb.append("    line: 2\n")
+        sb.append("    pattern: \"<color:#E74C3C><i>ABCDEFGHIJ</i></color><color:#2ECC71>█</color>\"\n")
+        sb.append("    align: left\n")
+        sb.append("    x: $xPos\n")
+        sb.append("    y: 110\n")
         sb.append(animSection)
         return sb.toString()
     }

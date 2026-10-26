@@ -103,6 +103,62 @@ debug-italic-server:
       align: left
       x: -180
       y: 230
+    pair_scale_2_reg:
+      name: default_font
+      scale: 2.0
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 2.0</white>"
+      align: left
+      x: -180
+      y: -140
+    pair_scale_2_bold:
+      name: default_font
+      scale: 2.0
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 2.0 Bold</b></white>"
+      align: left
+      x: -180
+      y: -120
+    pair_scale_half_reg:
+      name: default_font
+      scale: 0.5
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 0.5</white>"
+      align: left
+      x: -180
+      y: -160
+    pair_scale_half_bold:
+      name: default_font
+      scale: 0.5
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 0.5 Bold</b></white>"
+      align: left
+      x: -180
+      y: -150
+    pair_line_2_reg:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Line 2</white>"
+      align: left
+      x: -180
+      y: 80
+    pair_line_2_bold:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Line 2 Bold</b></white>"
+      align: left
+      x: -180
+      y: 90
+    pair_line_2_adv_reg:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB>ABCDEFGHIJ</color><color:#2ECC71>█</color>"
+      align: left
+      x: -180
+      y: 100
+    pair_line_2_adv_ita:
+      name: default_font
+      line: 2
+      pattern: "<color:#E74C3C><i>ABCDEFGHIJ</i></color><color:#2ECC71>█</color>"
+      align: left
+      x: -180
+      y: 110
 
 debug-italic-client:
   texts:
@@ -202,6 +258,62 @@ debug-italic-client:
       align: left
       x: 60
       y: 230
+    pair_scale_2_reg:
+      name: default_font
+      scale: 2.0
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 2.0</white>"
+      align: left
+      x: 60
+      y: -140
+    pair_scale_2_bold:
+      name: default_font
+      scale: 2.0
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 2.0 Bold</b></white>"
+      align: left
+      x: 60
+      y: -120
+    pair_scale_half_reg:
+      name: default_font
+      scale: 0.5
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Scale 0.5</white>"
+      align: left
+      x: 60
+      y: -160
+    pair_scale_half_bold:
+      name: default_font
+      scale: 0.5
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Scale 0.5 Bold</b></white>"
+      align: left
+      x: 60
+      y: -150
+    pair_line_2_reg:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Line 2</white>"
+      align: left
+      x: 60
+      y: 80
+    pair_line_2_bold:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Line 2 Bold</b></white>"
+      align: left
+      x: 60
+      y: 90
+    pair_line_2_adv_reg:
+      name: default_font
+      line: 2
+      pattern: "<color:#3498DB>ABCDEFGHIJ</color><color:#2ECC71>█</color>"
+      align: left
+      x: 60
+      y: 100
+    pair_line_2_adv_ita:
+      name: default_font
+      line: 2
+      pattern: "<color:#E74C3C><i>ABCDEFGHIJ</i></color><color:#2ECC71>█</color>"
+      align: left
+      x: 60
+      y: 110
   animations:
     type: play_once
     duration: 60

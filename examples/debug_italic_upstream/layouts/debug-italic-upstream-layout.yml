@@ -1,0 +1,31 @@
+# =============================================================
+#   BetterHud — Minimal Italic Test Layout (Upstream & Fork Parity)
+#   Compatible with both upstream BetterHud and fork.
+# =============================================================
+
+debug-italic-upstream-layout:
+  texts:
+    pair_block_0:
+      name: default_font
+      pattern: "<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Regular vs Italic</white>"
+      align: left
+      x: 0
+      y: 0
+    pair_bold_0:
+      name: default_font
+      pattern: "<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Bold vs Bold+Italic</b></white>"
+      align: left
+      x: 0
+      y: 10
+    pair_adv_reg:
+      name: default_font
+      pattern: "<color:#3498DB>ABCDEFGHIJ</color><color:#2ECC71>█</color>"
+      align: left
+      x: 0
+      y: 20
+    pair_adv_ita:
+      name: default_font
+      pattern: "<color:#E74C3C><i>ABCDEFGHIJ</i></color><color:#2ECC71>█</color>"
+      align: left
+      x: 0
+      y: 30

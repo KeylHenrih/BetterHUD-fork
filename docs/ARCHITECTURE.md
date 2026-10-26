@@ -185,7 +185,7 @@ This moves the glyph millions of pixels off-screen to the left ($pos.x < -10000.
 | **Upstream (`8f4b11dc`)** | *(None)* | $\approx -2.1\text{M}$ | $\approx -2.1\text{M}$ | $\approx -2.1\text{M}$ px | Italic text flew completely off-screen |
 | **Fork Initial (`60ec98b9`)** | `0.25 * float((bit<<13) + 4095 + 10)` | $+1.75 - 0.25y$ | $+1.75 - 0.25y$ | $-0.25y + 0.75$ px | Ignored layout $y$ coordinate; no height slant |
 | **Commit `538299dd` (H1)** | `0.25 * (pos.y - 10.0 - isBottom * 8.0)` | $-0.75$ px | $-2.75$ px | **$-1.75$ px** | Accounted for $y$, but omitted $0.25 \times \text{ascent}$ |
-| **Current (`47990041`)** | `0.25 * (pos.y - 10.0 - isBottom * 8.0) + 1.75` | **$+1.00$ px** | **$-1.00$ px** | **$0.000000$ px** | Exactly restores vanilla slant center |
+| **Current (`47990041`)** | `0.25 * (pos.y - 10.0 - isBottom * 8.0) + 1.75` | **$+1.00$ px** | **$-1.00$ px** | **$0.000000$ px** | Расчётное значение, подтверждено экранным замером в клиенте 26.1.2 (ошибка 0.000 GUI-px) |
 
 ### 8.4 Analytical Derivation of the Unified Formula
 At entry to `text.vsh`:
@@ -210,4 +210,4 @@ $$\mathbf{\Delta X = 0.25 \times (pos.y - textY - isBottom \times H)}$$
 ### 8.5 Server Mode vs Client Mode Invariance
 Because `text.vsh` is shared across all HUD elements:
 1. **Non-italic server text:** Completely unaffected ($pos.x > 0$), 100% bit-for-bit invariant ($0.000000$ px discrepancy verified by GPU Transform Feedback).
-2. **Italic server text:** Shifted right by $+1.75$ GUI-pixels to align with true vanilla center (verified by GPU Transform Feedback in Test 6).
+2. **Italic server text:** Shifted right by $+1.75$ GUI-pixels to align with true vanilla center (расчётное значение, подтверждено GPU Transform Feedback и экранными замерами в клиенте 26.1.2).

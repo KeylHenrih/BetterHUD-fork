@@ -2680,8 +2680,18 @@ class ClientAnimationTest {
         val serverTexts = serverYaml["texts"]?.asObject()?.get() ?: emptyMap<Any, Any>()
         val clientTexts = clientYaml["texts"]?.asObject()?.get() ?: emptyMap<Any, Any>()
 
-        assertEquals(16, serverTexts.size, "Server layout must contain 16 text rows (4 heights x 4 styles)")
-        assertEquals(16, clientTexts.size, "Client layout must contain 16 text rows (4 heights x 4 styles)")
+        assertEquals(24, serverTexts.size, "Server layout must contain 24 text rows (4 heights x 4 styles + scale 2.0/0.5 + line 2)")
+        assertEquals(24, clientTexts.size, "Client layout must contain 24 text rows (4 heights x 4 styles + scale 2.0/0.5 + line 2)")
+
+        // Verify scale and line 2 entries
+        assertTrue(serverTexts.containsKey("pair_scale_2_reg"), "Must have scale 2.0 reg")
+        assertTrue(serverTexts.containsKey("pair_scale_2_bold"), "Must have scale 2.0 bold")
+        assertTrue(serverTexts.containsKey("pair_scale_half_reg"), "Must have scale 0.5 reg")
+        assertTrue(serverTexts.containsKey("pair_scale_half_bold"), "Must have scale 0.5 bold")
+        assertTrue(serverTexts.containsKey("pair_line_2_reg"), "Must have line 2 reg")
+        assertTrue(serverTexts.containsKey("pair_line_2_bold"), "Must have line 2 bold")
+        assertTrue(serverTexts.containsKey("pair_line_2_adv_reg"), "Must have line 2 adv reg")
+        assertTrue(serverTexts.containsKey("pair_line_2_adv_ita"), "Must have line 2 adv ita")
 
         // 3. Verify anim section present on client, absent on server
         assertNull(serverYaml["animations"], "Server layout must have no animations")
