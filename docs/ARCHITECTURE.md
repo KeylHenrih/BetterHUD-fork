@@ -131,7 +131,7 @@ case 1: {
 ## 6. Verification and Regression Protections
 
 1. **CPU Codec Sweep:** `TextExactCodecTest` runs 2,000,000 random RGB samples and 4,096 systematic channel sweep tests. Max error: 0.
-2. **GPU Transform Feedback:** `GpuShaderTest` executes real GLSL on hardware GPU (Intel RPL-P / Core Profile 4.6) for 1,000,000 vertices. Max RGB error: 0.0. Max synchrony discrepancy: 0.000000.
+2. **GPU Transform Feedback:** `GpuShaderTest` executes real GLSL on hardware GPU (проверено: Mesa Intel RPL-P / Core Profile 4.6, glslangValidator; на NVIDIA/AMD/Apple не проверено) for 1,000,000 vertices. Max RGB error: 0.0. Max synchrony discrepancy: 0.000000.
 3. **ShaderLint:** `ShaderLintTest` lints generated GLSL across all overlays (`betterhud_1_21_4`, `betterhud_1_21_6`, `betterhud_26_1`, `betterhud_26_2`, `betterhud_26_3`) via `glslangValidator`. 0 errors.
 4. **Live Server Execution:** Purpur 26.1.2 executes `hud reload`, `hud debug-anim`, `hud debug-popup debug_color_popup hold` with 0 ERROR logs.
 

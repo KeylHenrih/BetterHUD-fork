@@ -11,7 +11,7 @@ This standalone test suite verifies generated BetterHud client animation GLSL ve
 1. **JDK 25 or higher:**
    Ensure `JAVA_HOME` is set or `java` is in your `PATH`.
 2. **GPU Driver with OpenGL 4.6 Core Profile:**
-   - Linux: Mesa 22.0+ (Iris, RadeonSI, Nouveau, NVK) or proprietary NVIDIA driver.
+   - Linux: Mesa 22.0+ (проверено на Mesa Intel RPL-P; на NVIDIA/AMD/Apple не проверено).
    - Display: Accessible X11 / Wayland display or headless EGL / GLX context.
 3. **Built Project:**
    The test dynamically references compiled classes and dependencies. Run `./gradlew build` once before running this test.

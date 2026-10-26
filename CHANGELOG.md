@@ -5,13 +5,13 @@ All notable changes to BetterHud (Client-Side Animation Fork) will be documented
 ## [2.2.0-fork.3] - 2026-10-26
 
 ### Fixed
-- **A (GLSL Floored Modulo Hardening):** Stabilized GLSL `jmod` against float division precision errors across the 24,000-tick day boundary (`m = x - y * floor(x / y); return m >= y ? m - y : (m < 0.0 ? m + y : m);`); hardware GPU verified across 3,312 time boundary combinations.
-- **B (Layout Slot Overflow Protection):** Reserved explicit static `case 0: { break; }` in GLSL for overflown layouts ($\ge 1024$), logging a single summary warning listing all overflown layout names.
+- **A (GLSL Floored Modulo Hardening):** Stabilized GLSL `jmod` against possible float division precision discrepancies across the 24,000-tick day boundary (`m = x - y * floor(x / y); return m >= y ? m - y : (m < 0.0 ? m + y : m);`); hardware GPU verified across 3,312 time boundary combinations (verified: Mesa Intel, glslangValidator; unverified on NVIDIA/AMD/Apple).
+- **B (Slot Priority and Server Fallback):** Prioritized client animation shaders for slots 1..1023; overflown layouts safely fall back to server variant without emitting protocol quads (alpha in 1..240) into empty case 0.
 - **C (World Change & Respawn Server Parity):** Restored 100% upstream parity for server mode (no bossbar flicker, no popup wiping, no reloads); in client mode, re-anchors listener trackers and updates active popup spawn times without full reload.
-- **D (Popup Lifecycle Parity & Hold Freezing):** Fixed `/hud debug-popup ... hold` cyclic re-triggering via `keepAlive()` in `PopupUpdater`; pinned client virtual elapsed time to `animDuration` after completion, eliminating premature disappearance at safe window ($M - L$) and ensuring held popups freeze on the final frame matching server mode.
-- **E (Thread-Safe Bounded Text Cache):** Replaced bulk-clear cache with `ExpiringMap` LRU cache bounded to 2048 elements; stress-tested with 100,000 distinct items; verified Folia multi-threading concurrency across 16 parallel threads; benchmarked 12.7x speedup (1,169,728 ops/sec).
-- **G (Text Decoration Support & Safe Fallback):** Added automatic fallback to server mode for layouts with unsupported text decorations (`<u>`, `<st>`, `<obf>`), preventing font renderer line geometry artifacts.
-- **I (Cross-Vendor GLSL Portability):** Fixed implicit integer casts (`float x = 0;` -> `0.0`, `vec4(1, 1, 1, ...)` -> `vec4(1.0, 1.0, 1.0, ...)`), added explicit `default: { break; }` to switch statements across all overlays; validated with `glslangValidator`.
+- **D (Popup Lifecycle Parity & Hold Freezing):** Fixed `/hud debug-popup ... hold` cyclic re-triggering via `keepAlive()` in `PopupUpdater`; preserved byte-for-byte component constancy from `animDuration` to safe window ($M - L - 1$) for non-held popups.
+- **E (Thread-Safe Bounded Text LRU Cache):** Replaced external dependency with standard library `Collections.synchronizedMap(LinkedHashMap(accessOrder = true))` LRU cache bounded to 2048 elements; stress-tested with 100,000 distinct items; verified Folia multi-threading concurrency across 16 parallel threads; benchmarked 12.7x speedup (1,169,728 ops/sec).
+- **G (Text Decoration Support & Safe Fallback):** Strips unsupported text decorations (`<u>`, `<st>`, `<obf>`) from dynamic placeholders with rate-limited warning, preventing font renderer line artifacts or quad disappearance.
+- **I (GLSL Portability):** Fixed implicit integer casts (`float x = 0;` -> `0.0`, `vec4(1, 1, 1, ...)` -> `vec4(1.0, 1.0, 1.0, ...)`), added explicit `default: { break; }` to switch statements across all overlays (verified: Mesa Intel, glslangValidator; unverified on NVIDIA/AMD/Apple).
 
 ### Added
 - **F (Configuration Parity Analyzer):** Standalone configuration parity tool in `tools/config-parity-tool/` analyzing real server deployments (`BETTERHUD_CONFIG_DIR`).

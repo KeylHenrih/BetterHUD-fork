@@ -1,6 +1,12 @@
-# BetterHUD Cross-Vendor Verification & Testing Guide
+# BetterHUD Verification & Testing Guide
 
-This guide provides a comprehensive checklist for testing BetterHUD client-side shader animations across various hardware vendors (NVIDIA GeForce, AMD Radeon, Apple Silicon M-series, and Intel Arc / Mesa).
+This guide provides a comprehensive checklist for testing BetterHUD client-side shader animations.
+
+> [!NOTE]
+> **Текущий статус проверки драйверов / Driver Verification Status:**
+> - Проверено на оборудовании: **Mesa Intel** (RPL-P, OpenGL 4.6 Core Profile), **glslangValidator** (0 ошибок валидации GLSL).
+> - На **NVIDIA**, **AMD Radeon**, **Apple Silicon / Metal** работа на реальном железе **не проверена**.
+> - Тестирование по данной инструкции на видеокартах NVIDIA/AMD/Apple приветствуется.
 
 ---
 
