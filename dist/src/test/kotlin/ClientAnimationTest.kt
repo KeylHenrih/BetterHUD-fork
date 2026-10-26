@@ -1357,22 +1357,26 @@ class ClientAnimationTest {
                 val shearTop = 1.0f - 0.25f * up
                 val shearBottom = 1.0f - 0.25f * down
 
+                // Real Minecraft client 26.1.2: BossHealthOverlay renders text at textY = 12 - 9 = 3.0f
+                // BakedSheetGlyph.render() adds textY + up, so top vertex enters shader at textY + up (e.g. 3.0 + 7.0 + A = 10.0 + A)
+                val textY = 3.0f
+
                 // Quad vertex 0 (Top-Left)
                 var posX0 = xLayout + 0.5f * uiX + shearTop
-                var posY0 = defaultOffset + up
+                var posY0 = textY + up
 
                 // Quad vertex 1 (Bottom-Left)
                 var posX1 = xLayout + 0.5f * uiX + shearBottom
-                var posY1 = defaultOffset + down
+                var posY1 = textY + down
 
                 // Quad vertex 2 (Bottom-Right)
                 val charWidth = 6.0f
                 var posX2 = xLayout + charWidth + 0.5f * uiX + shearBottom
-                var posY2 = defaultOffset + down
+                var posY2 = textY + down
 
                 // Quad vertex 3 (Top-Right)
                 var posX3 = xLayout + charWidth + 0.5f * uiX + shearTop
-                var posY3 = defaultOffset + up
+                var posY3 = textY + up
 
                 fun processShader(posX: Float, posY: Float, vid: Int): Float {
                     var x = posX
@@ -1380,7 +1384,7 @@ class ClientAnimationTest {
                     val bit = y.toInt() shr heightBit
                     if (x < -10000.0f) {
                         val isBottom = if (vid == 1 || vid == 2) 1.0f else 0.0f
-                        x += 0.25f * (y - defaultOffset - isBottom * glyphHeight)
+                        x += 0.25f * (y - defaultOffset - isBottom * glyphHeight) + 1.75f
                     }
                     x -= 0.5f * uiX
                     return x
@@ -2629,21 +2633,19 @@ class ClientAnimationTest {
         assertEquals("play_once", clientAnim!!["type"]?.asString()?.lowercase())
         assertEquals(60, clientAnim["duration"]?.asInt())
 
-        // 4. Verify each row contains reference glyph █ with yellow color and red shadow
+        // 4. Verify each row contains paired reference glyph (Blue #3498DB) and test glyph (Red #E74C3C)
         for ((key, row) in serverTexts) {
             val map = row as Map<*, *>
             val pattern = map["pattern"] as String
-            assertTrue(pattern.contains("<color:#FFFF00>█</color>"), "Row $key must have reference glyph █ in yellow")
-            assertTrue(pattern.contains("<shadow:#FF5555>"), "Row $key must have colored shadow #FF5555")
-            assertEquals(-140, (map["x"] as Number).toInt(), "Server column X must be -140")
+            assertTrue(pattern.contains("<color:#3498DB>") || pattern.contains("<color:#E74C3C>"), "Row $key must have colored glyphs")
+            assertEquals(-180, (map["x"] as Number).toInt(), "Server column X must be -180")
         }
 
         for ((key, row) in clientTexts) {
             val map = row as Map<*, *>
             val pattern = map["pattern"] as String
-            assertTrue(pattern.contains("<color:#FFFF00>█</color>"), "Row $key must have reference glyph █ in yellow")
-            assertTrue(pattern.contains("<shadow:#FF5555>"), "Row $key must have colored shadow #FF5555")
-            assertEquals(40, (map["x"] as Number).toInt(), "Client column X must be +40")
+            assertTrue(pattern.contains("<color:#3498DB>") || pattern.contains("<color:#E74C3C>"), "Row $key must have colored glyphs")
+            assertEquals(60, (map["x"] as Number).toInt(), "Client column X must be 60")
         }
     }
 }

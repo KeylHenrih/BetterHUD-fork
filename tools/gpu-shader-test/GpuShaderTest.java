@@ -401,7 +401,7 @@ public class GpuShaderTest {
                     if (pos.x < -10000.0) {
                         int vid = gl_VertexID % 4;
                         float isBottom = (vid == 1 || vid == 2) ? 1.0 : 0.0;
-                        pos.x += 0.25 * (pos.y - float(DEFAULT_OFFSET) - isBottom * 8.0);
+                        pos.x += 0.25 * (pos.y - float(DEFAULT_OFFSET) - isBottom * 8.0) + 1.75;
                     }
                     pos.x -= 0.5 * ui.x;
                     pos.y -= float((bit << HEIGHT_BIT) + ADD_OFFSET + DEFAULT_OFFSET);
@@ -429,11 +429,12 @@ public class GpuShaderTest {
         }
 
         int[] testYCoords = {0, 37, 200, -150};
-        int[] testIds = {1, 5, 42};
+        int[] testIds = {0, 1, 5, 42, 512, 800, 1023};
         float xLayout = 100.0f;
         float charWidth = 6.0f;
         float uiX = 1920.0f;
         float defaultOffset = 10.0f;
+        float textY = 3.0f; // Real client BossHealthOverlay line 1: eventY(12) - 9 = 3.0f
         int heightBit = 13;
         int maxBit = 10;
         int addOffset = 4095;
@@ -448,33 +449,37 @@ public class GpuShaderTest {
                 int ascent = -(((id + (1 << maxBit)) << heightBit) + addOffset + y);
                 float up = 7.0f - (float)ascent;
                 float down = up + 8.0f;
-                float shearTop = 1.0f - 0.25f * up;
-                float shearBottom = 1.0f - 0.25f * down;
+                // Client CPU float32 evaluation (exact emulation of BakedSheetGlyph.render)
+                float shearTop = (float)(1.0f - 0.25f * up);
+                float shearBottom = (float)(1.0f - 0.25f * down);
+
+                float posY_up = textY + up;
+                float posY_down = textY + down;
 
                 // 1. Regular
-                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX, defaultOffset + up, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX, defaultOffset + up, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX, posY_up, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX, posY_up, 0.0f });
 
                 // 2. Italic
-                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearTop, posY_up, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + 0.5f * uiX + shearBottom, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearBottom, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xLayout + charWidth + 0.5f * uiX + shearTop, posY_up, 0.0f });
 
                 // 3. Bold (shifted by +1.0 px)
                 float xBold = xLayout + 1.0f;
-                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX, defaultOffset + up, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX, defaultOffset + up, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX, posY_up, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX, posY_up, 0.0f });
 
                 // 4. Bold + Italic
-                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX + shearBottom, defaultOffset + down, 0.0f });
-                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX + shearTop, defaultOffset + up, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX + shearTop, posY_up, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + 0.5f * uiX + shearBottom, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX + shearBottom, posY_down, 0.0f });
+                italicInBuffer.put(new float[]{ xBold + charWidth + 0.5f * uiX + shearTop, posY_up, 0.0f });
             }
         }
         italicInBuffer.flip();
@@ -510,14 +515,14 @@ public class GpuShaderTest {
                 // 1. Regular
                 int base0 = quadIdx * 4 * 3;
                 assertEquals(xLayout, outItalic.get(base0), 0.001f, "Regular V0 X (y=" + y + ", id=" + id + ")");
-                assertEquals((float)(y + 7), outItalic.get(base0 + 1), 0.001f, "Regular V0 Y (y=" + y + ", id=" + id + ")");
+                assertEquals((float)y, outItalic.get(base0 + 1), 0.001f, "Regular V0 Y (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + charWidth, outItalic.get(base0 + 6), 0.001f, "Regular V2 X (y=" + y + ", id=" + id + ")");
                 quadIdx++;
 
                 // 2. Italic
                 int base1 = quadIdx * 4 * 3;
                 assertEquals(xLayout + 1.0f, outItalic.get(base1), 0.001f, "Italic V0 X (y=" + y + ", id=" + id + ")");
-                assertEquals((float)(y + 7), outItalic.get(base1 + 1), 0.001f, "Italic V0 Y (y=" + y + ", id=" + id + ")");
+                assertEquals((float)y, outItalic.get(base1 + 1), 0.001f, "Italic V0 Y (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout - 1.0f, outItalic.get(base1 + 3), 0.001f, "Italic V1 X (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + charWidth - 1.0f, outItalic.get(base1 + 6), 0.001f, "Italic V2 X (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + charWidth + 1.0f, outItalic.get(base1 + 9), 0.001f, "Italic V3 X (y=" + y + ", id=" + id + ")");
@@ -526,14 +531,14 @@ public class GpuShaderTest {
                 // 3. Bold
                 int base2 = quadIdx * 4 * 3;
                 assertEquals(xLayout + 1.0f, outItalic.get(base2), 0.001f, "Bold V0 X (y=" + y + ", id=" + id + ")");
-                assertEquals((float)(y + 7), outItalic.get(base2 + 1), 0.001f, "Bold V0 Y (y=" + y + ", id=" + id + ")");
+                assertEquals((float)y, outItalic.get(base2 + 1), 0.001f, "Bold V0 Y (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + 1.0f + charWidth, outItalic.get(base2 + 6), 0.001f, "Bold V2 X (y=" + y + ", id=" + id + ")");
                 quadIdx++;
 
                 // 4. Bold + Italic
                 int base3 = quadIdx * 4 * 3;
                 assertEquals(xLayout + 2.0f, outItalic.get(base3), 0.001f, "Bold+Italic V0 X (y=" + y + ", id=" + id + ")");
-                assertEquals((float)(y + 7), outItalic.get(base3 + 1), 0.001f, "Bold+Italic V0 Y (y=" + y + ", id=" + id + ")");
+                assertEquals((float)y, outItalic.get(base3 + 1), 0.001f, "Bold+Italic V0 Y (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout, outItalic.get(base3 + 3), 0.001f, "Bold+Italic V1 X (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + charWidth, outItalic.get(base3 + 6), 0.001f, "Bold+Italic V2 X (y=" + y + ", id=" + id + ")");
                 assertEquals(xLayout + charWidth + 2.0f, outItalic.get(base3 + 9), 0.001f, "Bold+Italic V3 X (y=" + y + ", id=" + id + ")");
