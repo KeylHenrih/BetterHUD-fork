@@ -317,7 +317,7 @@ object DebugProbeHelper {
     }
 
     private fun generateItalicLayoutYaml(isClient: Boolean): String {
-        val xPos = if (isClient) 40 else -140
+        val xPos = if (isClient) 60 else -180
         val animSection = if (isClient) """
 animations:
   type: play_once
@@ -327,26 +327,41 @@ animations:
 """ else ""
 
         val heights = listOf(-100, 0, 50, 200)
-        val styles = listOf(
-            "norm" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal",
-            "ital" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i>",
-            "bold" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b>",
-            "bita" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b>"
-        )
-
         val sb = StringBuilder()
         sb.append("texts:\n")
         for (y in heights) {
             val yKey = if (y < 0) "m${-y}" else "$y"
-            for ((idx, s) in styles.withIndex()) {
-                val lineY = y + idx * 10
-                sb.append("  ${s.first}_$yKey:\n")
-                sb.append("    name: default_font\n")
-                sb.append("    pattern: \"${s.second} Y=$y</color></shadow>\"\n")
-                sb.append("    align: left\n")
-                sb.append("    x: $xPos\n")
-                sb.append("    y: $lineY\n")
-            }
+            
+            // Pair 1: Solid block Regular (Blue #3498DB) vs Italic (Red #E74C3C)
+            sb.append("  pair_block_$yKey:\n")
+            sb.append("    name: default_font\n")
+            sb.append("    pattern: \"<color:#3498DB>█</color> <color:#E74C3C><i>█</i></color> <white>Regular vs Italic (Y=$y)</white>\"\n")
+            sb.append("    align: left\n")
+            sb.append("    x: $xPos\n")
+            sb.append("    y: $y\n")
+
+            // Pair 2: Solid block Bold (Blue #3498DB) vs BoldItalic (Red #E74C3C)
+            sb.append("  pair_bold_$yKey:\n")
+            sb.append("    name: default_font\n")
+            sb.append("    pattern: \"<color:#3498DB><b>█</b></color> <color:#E74C3C><b><i>█</i></b></color> <white><b>Bold vs BoldItalic (Y=$y)</b></white>\"\n")
+            sb.append("    align: left\n")
+            sb.append("    x: $xPos\n")
+            sb.append("    y: ${y + 10}\n")
+
+            // Pair 3: Advance marker test (testing I3: 10 chars followed by marker █)
+            sb.append("  pair_advance_reg_$yKey:\n")
+            sb.append("    name: default_font\n")
+            sb.append("    pattern: \"<color:#3498DB>ABCDEFGHIJ</color><color:#2ECC71>█</color>\"\n")
+            sb.append("    align: left\n")
+            sb.append("    x: $xPos\n")
+            sb.append("    y: ${y + 20}\n")
+
+            sb.append("  pair_advance_ita_$yKey:\n")
+            sb.append("    name: default_font\n")
+            sb.append("    pattern: \"<color:#E74C3C><i>ABCDEFGHIJ</i></color><color:#2ECC71>█</color>\"\n")
+            sb.append("    align: left\n")
+            sb.append("    x: $xPos\n")
+            sb.append("    y: ${y + 30}\n")
         }
         sb.append(animSection)
         return sb.toString()
