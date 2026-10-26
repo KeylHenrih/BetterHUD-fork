@@ -55,6 +55,10 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+### Python ###
+__pycache__/
+*.pyc
+
 ### Minecraft & Server Run ###
 /run
 /plugins
