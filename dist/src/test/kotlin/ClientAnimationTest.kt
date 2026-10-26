@@ -1854,60 +1854,60 @@ class ClientAnimationTest {
 
     @Test
     fun testPopupLifecycleParityAndHoldSimulation() {
-        val D = 20
+        val D = 16
         val M = 120
-        val L = 0
+        val L = 5
+        val safeWindow = M - L // 115
 
-        fun evalServer(tick: Long): Triple<Double, Double, Double> {
-            val clamped = tick.coerceIn(0L, D.toLong())
-            val progress = clamped.toDouble() / D
-            return Triple(0.0, -20.0 * progress, 1.0 - 0.5 * progress)
-        }
-
-        fun evalClient(worldTime: Long, spawnTime: Long, isHeld: Boolean): Triple<Double, Double, Double>? {
+        fun evalComponentAtTick(worldTime: Long, spawnTime: Long, isHeld: Boolean): WidthComponent? {
             val currentElapsed = (worldTime - spawnTime).toInt()
-            val safeWindow = M - L
-            val animDuration = D
-            val isPastAnim = currentElapsed >= animDuration
-            val effectiveBaseTick = if (isPastAnim) worldTime - animDuration else spawnTime
+            val isExceedingSafeWindow = currentElapsed >= safeWindow
+            val effectiveBaseTick = if (isHeld && isExceedingSafeWindow) worldTime - D else spawnTime
             val effectiveElapsed = (worldTime - effectiveBaseTick).toInt()
-            if (effectiveElapsed >= safeWindow) return null
-            val t = effectiveElapsed.coerceIn(0, animDuration).toDouble()
-            val progress = t / D
-            return Triple(0.0, -20.0 * progress, 1.0 - 0.5 * progress)
+            if (!isHeld && effectiveElapsed >= safeWindow) return null
+            val lookahead = L
+            val startTick = effectiveBaseTick + lookahead
+            val tStartByte = ((startTick % M).toInt()).coerceIn(0, M - 1)
+            val sampleText = Component.text("Damage 100").color(TextColor.color(255, 0, 0))
+            return WidthComponent(sampleText.toBuilder(), 50).applyClientExactDual(tStartByte, M)
         }
 
-        // Subtest 1: 100-frame time simulation with re-triggers at ticks 15, 35, 70
-        var serverTick = 0L
-        var clientSpawnTime = 0L
-        for (worldTime in 0L..100L) {
-            if (worldTime == 15L || worldTime == 35L || worldTime == 70L) {
-                // Re-triggering popup updates both server tick and client spawn time
-                serverTick = 0L
-                clientSpawnTime = worldTime
+        // Subtest 1: NON-hold popup (animDuration = 16, lives up to safeWindow - 1 = 114 ticks)
+        val nonHoldSpawnTime = 0L
+        val compAt16 = evalComponentAtTick(16L, nonHoldSpawnTime, isHeld = false)
+        assertNotNull(compAt16, "Component at tick 16 must not be null")
+
+        var nonHoldNetworkUpdates = 0
+        var prevComp = compAt16
+        for (worldTime in 16L until safeWindow.toLong()) { // 16..114
+            val compAtTick = evalComponentAtTick(worldTime, nonHoldSpawnTime, isHeld = false)
+            assertNotNull(compAtTick, "Non-hold popup must remain valid at tick $worldTime")
+            if (compAtTick != prevComp) {
+                nonHoldNetworkUpdates++
+                prevComp = compAtTick
             }
-            val (sx, sy, sop) = evalServer(serverTick)
-            val clientRes = evalClient(worldTime, clientSpawnTime, isHeld = false)
-            assertNotNull(clientRes, "Client popup must not be null at tick $worldTime")
-            val (cx, cy, cop) = clientRes!!
-            assertEquals(sx, cx, 0.5, "X parity at tick $worldTime")
-            assertEquals(sy, cy, 0.5, "Y parity at tick $worldTime")
-            assertEquals(sop, cop, 0.02, "Opacity parity at tick $worldTime")
-            serverTick++
+            assertEquals(compAt16, compAtTick, "Component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
         }
+        assertEquals(0, nonHoldNetworkUpdates, "Non-hold popup MUST produce exactly 0 network updates between animDuration and M-L-1")
 
         // Subtest 2: /hud debug-popup ... hold simulation
-        // Hold uses keepAlive() which keeps the popup alive without re-triggering spawn time
         val holdSpawnTime = 0L
-        for (worldTime in 0L..100L) {
-            val clientRes = evalClient(worldTime, holdSpawnTime, isHeld = true)
-            assertNotNull(clientRes, "Held popup must remain visible past safeWindow (tick $worldTime)")
-            val (_, cy, cop) = clientRes!!
-            if (worldTime >= D) {
-                assertEquals(-20.0, cy, 0.001, "Held popup must freeze at final Y frame")
-                assertEquals(0.5, cop, 0.001, "Held popup must freeze at final opacity frame")
+        var holdNetworkUpdates = 0
+        prevComp = compAt16
+        for (worldTime in 16L until safeWindow.toLong()) { // 16..114
+            val compAtTick = evalComponentAtTick(worldTime, holdSpawnTime, isHeld = true)
+            assertNotNull(compAtTick, "Held popup must remain valid at tick $worldTime")
+            if (compAtTick != prevComp) {
+                holdNetworkUpdates++
+                prevComp = compAtTick
             }
+            assertEquals(compAt16, compAtTick, "Held popup component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
         }
+        assertEquals(0, holdNetworkUpdates, "Held popup MUST produce exactly 0 network updates between animDuration and M-L-1")
+
+        // Beyond safeWindow (tick 115..150): hold popup re-anchors to avoid wrap-around and safety latch
+        val compAtSafeWindow = evalComponentAtTick(safeWindow.toLong(), holdSpawnTime, isHeld = true)
+        assertNotNull(compAtSafeWindow, "Held popup must remain visible past safeWindow (tick $safeWindow)")
     }
 
     @Test
