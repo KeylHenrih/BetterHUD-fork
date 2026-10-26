@@ -172,7 +172,8 @@ class PopupImpl(
                     pixel,
                     resource.font,
                     enableClientAnimation = true,
-                    layoutM = layoutM
+                    layoutM = layoutM,
+                    serverFallback = serverLayout
                 )
                 cLayouts.add(clientLayout)
             } else {

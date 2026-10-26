@@ -2306,14 +2306,19 @@ class ClientAnimationTest {
         val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
         val maxLayouts = (1 shl HUD_MAX_BIT) - 1 // 1023
 
-        val assignedIds = mutableListOf<Int>()
-        val dummyConsumer: (Int) -> Unit = { assignedIds.add(it) }
+        val assignedClientIds = IntArray(1100)
+        val assignedServerIds = IntArray(1100)
 
-        // Create 1100 synthetic layouts (1023 valid + 77 overflowing)
-        val testShaders = LinkedHashMap<HudShader, List<(Int) -> Unit>>()
+        // Create 1100 synthetic layouts (with both client and server shaders)
+        val testShaders = java.util.TreeMap<HudShader, List<(Int) -> Unit>>()
+        val anim = ClientAnimation(20, "0.0", "0.0", "1.0", kr.toxicity.hud.animation.AnimationType.PLAY_ONCE)
         for (i in 1..1100) {
-            val shader = HudShader(gui, scale, layer = i, outline = 0, opacity = 1.0, property = 0, name = "layout_$i")
-            testShaders[shader] = listOf(dummyConsumer)
+            val idx = i - 1
+            val name = "layout_%04d".format(i)
+            val clientShader = HudShader(gui, scale, layer = 0, outline = 0, opacity = 1.0, property = 0, clientAnimation = anim, isText = true, moduloM = 30, name = name)
+            val serverShader = HudShader(gui, scale, layer = 0, outline = 0, opacity = 1.0, property = 0, clientAnimation = null, isText = true, moduloM = 240, name = name)
+            testShaders[clientShader] = listOf { assignedClientIds[idx] = it }
+            testShaders[serverShader] = listOf { assignedServerIds[idx] = it }
         }
 
         val layout = ShaderManagerImpl.generateShaderLayout(testShaders)
@@ -2327,19 +2332,53 @@ class ClientAnimationTest {
 
         // 3. Must not contain case 1024 through 1100
         assertFalse(layout.any { it.contains("case 1024:") }, "Layout must not contain case 1024: overflow slots must be omitted")
-        assertFalse(layout.any { it.contains("case 1100:") }, "Layout must not contain case 1100: overflow slots must be omitted")
 
-        // 4. Overflown shaders (1024..1100) must fall back to id 0
-        assertEquals(1100, assignedIds.size)
-        assertEquals(1, assignedIds[0], "Slot 1 must get id 1")
-        assertEquals(1023, assignedIds[1022], "Slot 1023 must get id 1023")
+        // 4. Priority Rule: Client shaders must be prioritized!
+        // Client shaders 1..1023 get slots 1..1023
+        assertEquals(1, assignedClientIds[0], "Client layout 1 must get id 1")
+        assertEquals(1023, assignedClientIds[1022], "Client layout 1023 must get id 1023")
+
+        // Client shaders 1024..1100 overflow to 0
         for (idx in 1023 until 1100) {
-            assertEquals(0, assignedIds[idx], "Slot ${idx + 1} must fall back to static id 0")
+            assertEquals(0, assignedClientIds[idx], "Overflown client layout ${idx + 1} must receive id 0")
         }
 
-        // 5. Warning log must list all overflown layout names in a single message
-        assertTrue(warnings.any { it.contains("Layout slot overflow") && it.contains("layout_1024") && it.contains("layout_1100") },
-            "Warning log must contain single summary list of all overflown layout names")
+        // Server shaders all overflow to 0 because all 1023 slots were taken by client shaders
+        for (idx in 0 until 1100) {
+            assertEquals(0, assignedServerIds[idx], "Server shader ${idx + 1} must receive id 0")
+        }
+
+        // 5. Warning log must list all overflown layout names in a single message with exact allocation stats
+        assertTrue(warnings.any { it.contains("Layout slot overflow") && it.contains("Allocated: 1023 client, 0 server") && it.contains("layout_1024") && it.contains("layout_1100") },
+            "Warning log must report exact client/server allocation and overflown layouts: $warnings")
+
+        // 6. Test component behavior for overflown layouts:
+        val sampleText = Component.text("Damage ").color(TextColor.color(255, 0, 0))
+            .append(Component.text("100").color(TextColor.color(255, 255, 0)))
+        val widthComp = WidthComponent(sampleText.toBuilder(), 50)
+        val pixelComp = PixelComponent(widthComp, 0)
+
+        // Valid client layout sends dual protocol quads
+        val validClientComp = pixelComp.applyClientExactDual(5, 30)
+        fun hasProtocolQuads(comp: Component): Boolean {
+            val shadow = comp.style().shadowColor()
+            if (shadow != null && shadow.alpha() in 1..240) return true
+            if (comp.children().any { hasProtocolQuads(it) }) return true
+            return false
+        }
+        assertTrue(hasProtocolQuads(validClientComp.component().component().build()), "Valid client layout should use protocol quads")
+
+        // For overflown layouts (1024..1100):
+        for (idx in 1023 until 1100) {
+            val overflownClientShader = HudShader(gui, scale, layer = 0, outline = 0, opacity = 1.0, property = 0, clientAnimation = anim, isText = true, moduloM = 30, name = "layout_%04d".format(idx + 1))
+            val isOverflown = ShaderManagerImpl.getShaderId(overflownClientShader) == 0
+            assertTrue(isOverflown, "Shader for layout_${idx + 1} must be marked as overflown")
+
+            // Overflown layout renders server component: byte-for-byte equal to server variant
+            val renderedComp = if (isOverflown) pixelComp else pixelComp.applyClientExactDual(5, 30)
+            assertEquals(pixelComp, renderedComp, "Overflown layout component must be byte-for-byte equal to server variant")
+            assertFalse(hasProtocolQuads(renderedComp.component().component().build()), "Overflown layout must not emit any quads with A in 1..240")
+        }
     }
 
     @Test

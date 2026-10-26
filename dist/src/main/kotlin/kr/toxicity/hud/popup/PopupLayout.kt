@@ -17,6 +17,7 @@ import kr.toxicity.hud.location.GuiLocation
 import kr.toxicity.hud.location.LocationGroup
 import kr.toxicity.hud.location.PixelLocation
 import kr.toxicity.hud.manager.EncodeManager
+import kr.toxicity.hud.manager.ShaderManagerImpl
 import kr.toxicity.hud.pack.PackGenerator
 import kr.toxicity.hud.player.head.HeadKey
 import kr.toxicity.hud.player.head.HeadRenderType.FANCY
@@ -44,7 +45,8 @@ class PopupLayout(
     private val globalPixel: PixelLocation,
     private val file: List<String>,
     private val enableClientAnimation: Boolean = true,
-    private val layoutM: Int = 240
+    private val layoutM: Int = 240,
+    private val serverFallback: PopupLayout? = null
 ) {
     private var textIndex = 0
 
@@ -52,7 +54,12 @@ class PopupLayout(
         PopupLayoutGroup(location, json)
     }
 
+    fun isClientShaderOverflown(): Boolean = enableClientAnimation && groups.any { it.isOverflown }
+
     fun getComponent(reason: UpdateEvent, frameSupplier: (HudPlayer) -> Long = { it.tick }): (HudPlayer, Int) -> Runner<WidthComponent> {
+        if (enableClientAnimation && serverFallback != null && isClientShaderOverflown()) {
+            return serverFallback.getComponent(reason, frameSupplier)
+        }
         val build = layout.conditions build reason
         val map = groups.map {
             it.getComponent(reason, frameSupplier).let { componentBuilder ->
@@ -72,6 +79,7 @@ class PopupLayout(
         private val elements = layout.animation.location.map { location ->
             PopupElement(pair, array, location)
         }
+        val isOverflown: Boolean get() = elements.any { it.isOverflown }
         fun getComponent(reason: UpdateEvent, frameSupplier: (HudPlayer) -> Long): (HudPlayer) -> Runner<WidthComponent> {
             return { p ->
                 val frame = {
@@ -89,6 +97,9 @@ class PopupLayout(
     private inner class PopupElement(pair: LocationGroup, val array: JsonArray, location: PixelLocation) {
         private val elementGui = pair.gui + parent.gui + globalLocation
         private val elementPixel = globalPixel + location
+        private val elementShaders = ArrayList<HudShader>()
+        val isOverflown: Boolean
+            get() = enableClientAnimation && elementShaders.any { it.clientAnimation != null && ShaderManagerImpl.getShaderId(it) == 0 }
 
         fun getComponent(reason: UpdateEvent, frameSupplier: () -> Long): (HudPlayer) -> Runner<WidthComponent> {
             val imageProviders = image.map {
@@ -105,7 +116,7 @@ class PopupLayout(
                 val otherResult = otherProviders.map {
                     it(player)
                 }
-                val effectiveClientAnim = if (enableClientAnimation) layout.animation.clientAnimation else null
+                val effectiveClientAnim = if (enableClientAnimation && !isOverflown) layout.animation.clientAnimation else null
                 Runner {
                     val baseTick = iterator?.spawnTime?.takeIf { it > 0L } ?: player.worldTime()
                     val currentElapsed = (player.worldTime() - baseTick).toInt()
@@ -178,7 +189,7 @@ class PopupLayout(
                 target.property,
                 effectiveClientAnim,
                 moduloM = layoutM
-            )
+            ).apply { elementShaders.add(this) }
             val negativeSpace = parent.getOrCreateSpace(-1)
 
             val isClientSeq = target.source.isClientSequence
@@ -252,7 +263,7 @@ class PopupLayout(
                 isText = true,
                 isProbe = parent.name.startsWith("debug_probe") || layout.id.startsWith("debug-probe"),
                 moduloM = layoutM
-            )
+            ).apply { elementShaders.add(this) }
             val scaledMap = textLayout.source.charWidth.intEntries.associate { (k, v) ->
                 k to v * textLayout.scale
             }

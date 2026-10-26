@@ -108,6 +108,8 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
     )
 
     private val hudShaders = TreeMap<HudShader, MutableList<(Int) -> Unit>>()
+    private val shaderIdMap = ConcurrentHashMap<HudShader, Int>()
+    fun getShaderId(shader: HudShader): Int = shaderIdMap[shader] ?: 0
     private var compiledLayout = arrayListOf<String>()
 
     private val tagSupplierMap = ConcurrentHashMap<ShaderType, ShaderTagSupplier>()
@@ -235,10 +237,35 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
 
     fun generateShaderLayout(shaders: Map<HudShader, List<(Int) -> Unit>>): List<String> {
         val maxLayouts = (1 shl HUD_MAX_BIT) - 1
-        if (shaders.size > maxLayouts) {
-            val overflownNames = shaders.keys.drop(maxLayouts).map { it.name.ifEmpty { "shader#${it.hashCode()}" } }.distinct()
+        shaderIdMap.clear()
+
+        // Priority Rule:
+        // 1. Client animation shaders (clientAnimation != null) are prioritized first
+        // 2. Server/static shaders (clientAnimation == null) follow
+        // 3. Within each group, deterministic natural HudShader order is preserved
+        val priorityComparator = Comparator.comparing<Map.Entry<HudShader, List<(Int) -> Unit>>, Boolean>(
+            { it.key.clientAnimation != null },
+            Comparator.reverseOrder() // true (client) comes before false (server)
+        ).thenComparing { it.key }
+
+        val sortedEntries = shaders.entries.sortedWith(priorityComparator)
+        val totalCount = sortedEntries.size
+        val clientCount = sortedEntries.count { it.key.clientAnimation != null }
+        val serverCount = totalCount - clientCount
+
+        if (totalCount > maxLayouts) {
+            val allocatedEntries = sortedEntries.take(maxLayouts)
+            val overflownEntries = sortedEntries.drop(maxLayouts)
+            val allocatedClient = allocatedEntries.count { it.key.clientAnimation != null }
+            val allocatedServer = allocatedEntries.count { it.key.clientAnimation == null }
+            val overflownClientNames = overflownEntries.filter { it.key.clientAnimation != null }.map { it.key.name.ifEmpty { "shader#${it.key.hashCode()}" } }.distinct()
+            val overflownServerNames = overflownEntries.filter { it.key.clientAnimation == null }.map { it.key.name.ifEmpty { "shader#${it.key.hashCode()}" } }.distinct()
+            val details = buildList {
+                if (overflownClientNames.isNotEmpty()) add("fallback to server: $overflownClientNames")
+                if (overflownServerNames.isNotEmpty()) add("fallback to static: $overflownServerNames")
+            }.joinToString("; ")
             runCatching {
-                warn("Layout slot overflow: BetterHUD supports up to $maxLayouts unique shader layouts (current count: ${shaders.size}). The following layouts fell back to static rendering: $overflownNames")
+                warn("Layout slot overflow: BetterHUD supports up to $maxLayouts unique shader layouts (requested: $totalCount = $clientCount client + $serverCount server). Allocated: $allocatedClient client, $allocatedServer server. The following ${overflownEntries.size} layouts fell back: $details")
             }
         }
         val arr = arrayListOf<String>()
@@ -246,13 +273,15 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         arr.add("    // Reserved safe static fallback case for overflown layouts")
         arr.add("    break;")
         arr.add("}")
-        val result = shaders.entries.foldIndexed(arr) { index, list, entry ->
+        val result = sortedEntries.foldIndexed(arr) { index, list, entry ->
             val shader = entry.key
             val id = index + 1
             if (id > maxLayouts) {
+                shaderIdMap[shader] = 0
                 entry.value.forEach { it(0) }
                 return@foldIndexed list
             }
+            shaderIdMap[shader] = id
             list.add("case ${id}: {")
             if (shader.property > 0) arr.add("    property = ${shader.property};")
             if (shader.opacity < 1.0) arr.add("    opacity = ${shader.opacity.toFloat()};")
