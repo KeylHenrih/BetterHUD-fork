@@ -224,12 +224,17 @@ fun Component.applyClientExact(
 }
 
 private const val EXACT_CACHE_MAX_SIZE = 2048
-private val exactDualCache: MutableMap<ExactDualCacheKey, WidthComponent> = net.jodah.expiringmap.ExpiringMap.builder()
-    .maxSize(EXACT_CACHE_MAX_SIZE)
-    .build()
-private val exactSingleCache: MutableMap<ExactSingleCacheKey, WidthComponent> = net.jodah.expiringmap.ExpiringMap.builder()
-    .maxSize(EXACT_CACHE_MAX_SIZE)
-    .build()
+
+private fun <K, V> createLruCache(maxSize: Int): MutableMap<K, V> {
+    return java.util.Collections.synchronizedMap(object : java.util.LinkedHashMap<K, V>(maxSize / 2, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean {
+            return size > maxSize
+        }
+    })
+}
+
+private val exactDualCache: MutableMap<ExactDualCacheKey, WidthComponent> = createLruCache(EXACT_CACHE_MAX_SIZE)
+private val exactSingleCache: MutableMap<ExactSingleCacheKey, WidthComponent> = createLruCache(EXACT_CACHE_MAX_SIZE)
 
 data class ExactDualCacheKey(val component: Component, val tStartByte: Int, val moduloM: Int, val width: Int)
 data class ExactSingleCacheKey(val component: Component, val tStartByte: Int, val width: Int)
