@@ -33,6 +33,7 @@ import kr.toxicity.hud.text.applyClientExactDual
 import kr.toxicity.hud.text.applyClientDualRole
 import kr.toxicity.hud.text.DualCopyRole
 import kr.toxicity.hud.text.hasUnsupportedClientDecorations
+import kr.toxicity.hud.text.stripUnsupportedClientDecorations
 import net.kyori.adventure.text.TextComponent
 import java.io.File
 import kotlin.math.roundToInt
@@ -2517,5 +2518,76 @@ class ClientAnimationTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun testDynamicPlaceholderUnsupportedDecorationStripping() {
+        val mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+        val dynamicText = mm.deserialize("<red>Critical! <u><st><obf>+500</obf></st> Damage</u></red>")
+
+        // 1. Initial component contains unsupported decorations
+        assertTrue(dynamicText.hasUnsupportedClientDecorations(), "Dynamic component with <u>/<st>/<obf> must be flagged")
+
+        // 2. Strip unsupported decorations
+        val clean = dynamicText.stripUnsupportedClientDecorations()
+        assertFalse(clean.hasUnsupportedClientDecorations(), "Stripped component must not contain unsupported decorations")
+
+        // 3. Cleaned component can be encoded for client exact dual mode without being collapsed off-screen
+        val builder = if (clean is net.kyori.adventure.text.TextComponent) clean.toBuilder() else Component.text().append(clean)
+        val widthComp = WidthComponent(builder, 100)
+        val pixelComp = PixelComponent(widthComp, 0)
+        val dual = pixelComp.applyClientExactDual(5, 30)
+
+        fun hasProtocolQuads(comp: Component): Boolean {
+            val shadow = comp.style().shadowColor()
+            if (shadow != null && shadow.alpha() in 1..240) return true
+            if (comp.children().any { hasProtocolQuads(it) }) return true
+            return false
+        }
+        assertTrue(hasProtocolQuads(dual.component().component().build()), "Cleaned dynamic text must successfully encode protocol quads")
+
+        // 4. Rate-limiting check for logger
+        val warnings = mutableListOf<String>()
+        val mockLogger = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudLogger::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudLogger::class.java)
+        ) { _, method, args ->
+            if (method.name == "warn") {
+                val arr = args?.get(0)
+                if (arr is Array<*>) {
+                    warnings.addAll(arr.filterIsInstance<String>())
+                }
+            }
+            null
+        } as kr.toxicity.hud.api.BetterHudLogger
+
+        val mockBootstrap = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHudBootstrap::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHudBootstrap::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "logger" -> mockLogger
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHudBootstrap
+
+        val mockHud = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.BetterHud::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.BetterHud::class.java)
+        ) { _, method, _ ->
+            when (method.name) {
+                "bootstrap" -> mockBootstrap
+                else -> null
+            }
+        } as kr.toxicity.hud.api.BetterHud
+
+        val mainField = kr.toxicity.hud.api.BetterHudAPI::class.java.getDeclaredField("main")
+        mainField.isAccessible = true
+        mainField.set(null, mockHud)
+
+        for (i in 1..10) {
+            kr.toxicity.hud.text.warnUnsupportedDecorationOnce("damage_indicator")
+        }
+        assertEquals(1, warnings.size, "Rate-limited warning should log exactly once within cooldown window: $warnings")
     }
 }

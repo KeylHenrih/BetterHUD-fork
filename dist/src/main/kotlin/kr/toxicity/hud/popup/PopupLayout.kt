@@ -30,6 +30,7 @@ import kr.toxicity.hud.shader.HudShader
 import kr.toxicity.hud.text.BackgroundKey
 import kr.toxicity.hud.text.HudTextData
 import kr.toxicity.hud.text.hasUnsupportedClientDecorations
+import kr.toxicity.hud.text.stripUnsupportedClientDecorations
 import kr.toxicity.hud.text.applyClientExact
 import kr.toxicity.hud.text.applyClientExactDual
 import kr.toxicity.hud.util.*
@@ -159,12 +160,21 @@ class PopupLayout(
                         otherResult.map { fn ->
                             val pixelComp = fn(frame)
                             val comp = pixelComp.component.component.build()
-                            if (comp.hasUnsupportedClientDecorations()) {
-                                pixelComp
-                            } else if (kr.toxicity.hud.manager.ConfigManagerImpl.textShadowMode == kr.toxicity.hud.manager.ConfigManagerImpl.TextShadowMode.DUAL && layoutM <= 120) {
-                                pixelComp.applyClientExactDual(tStartByte, layoutM)
+                            val cleanComp = if (comp.hasUnsupportedClientDecorations()) {
+                                kr.toxicity.hud.text.warnUnsupportedDecorationOnce(parent.name)
+                                val stripped = comp.stripUnsupportedClientDecorations()
+                                val builder = if (stripped is net.kyori.adventure.text.TextComponent) stripped.toBuilder() else Component.text().append(stripped)
+                                PixelComponent(
+                                    WidthComponent(builder, pixelComp.component.width),
+                                    pixelComp.pixel
+                                )
                             } else {
-                                pixelComp.applyClientExact(tStartByte)
+                                pixelComp
+                            }
+                            if (kr.toxicity.hud.manager.ConfigManagerImpl.textShadowMode == kr.toxicity.hud.manager.ConfigManagerImpl.TextShadowMode.DUAL && layoutM <= 120) {
+                                cleanComp.applyClientExactDual(tStartByte, layoutM)
+                            } else {
+                                cleanComp.applyClientExact(tStartByte)
                             }
                         }
                     } else {

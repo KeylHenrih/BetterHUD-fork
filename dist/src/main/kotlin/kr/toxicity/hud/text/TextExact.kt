@@ -98,6 +98,36 @@ fun resolveShadow(
     }
 }
 
+private val decorationWarningLimiter = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+fun warnUnsupportedDecorationOnce(key: String) {
+    val now = System.currentTimeMillis()
+    val last = decorationWarningLimiter[key] ?: 0L
+    if (now - last > 10_000L) {
+        decorationWarningLimiter[key] = now
+        runCatching {
+            kr.toxicity.hud.util.warn("Unsupported text decoration (underline/strikethrough/obfuscated) detected in dynamic text '$key'; stripped for client shader animation.")
+        }
+    }
+}
+
+/**
+ * Strips decorations unsupported by client text shaders (<u>, <st>, <obf>) while preserving all other styles and content.
+ */
+fun Component.stripUnsupportedClientDecorations(): Component {
+    val s = style()
+    val newStyle = s.toBuilder()
+        .decoration(TextDecoration.UNDERLINED, TextDecoration.State.NOT_SET)
+        .decoration(TextDecoration.STRIKETHROUGH, TextDecoration.State.NOT_SET)
+        .decoration(TextDecoration.OBFUSCATED, TextDecoration.State.NOT_SET)
+        .build()
+    val newChildren = children().map { it.stripUnsupportedClientDecorations() }
+    return when (this) {
+        is net.kyori.adventure.text.TextComponent -> this.style(newStyle).children(newChildren)
+        else -> children(newChildren).style(newStyle)
+    }
+}
+
 /**
  * Checks whether any node contains decorations unsupported by client text shaders (<u>, <st>, <obf>).
  */
