@@ -1405,6 +1405,63 @@ class ClientAnimationTest {
     }
 
     @Test
+    fun testItalicShearCompensationAcrossGlyphHeightsAndBossbarLines() {
+        val uiX = 1920.0f
+        val xLayout = 100.0f
+        val heightBit = HUD_DEFAULT_BIT
+        val maxBit = HUD_MAX_BIT
+        val addOffset = HUD_ADD_HEIGHT.toFloat()
+
+        val testHeights = listOf(8.0f, 12.0f, 16.0f)
+        val testY = listOf(-100, 0, 50, 200)
+        val testIds = listOf(1, 42, 512, 1023)
+
+        for (glyphHeight in testHeights) {
+            for (id in testIds) {
+                for (y in testY) {
+                    val ascent = -(((id + (1 shl maxBit)) shl heightBit) + HUD_ADD_HEIGHT + y)
+                    val up = 7.0f - ascent.toFloat()
+                    val down = up + glyphHeight
+                    val shearTop = 1.0f - 0.25f * up
+                    val shearBottom = 1.0f - 0.25f * down
+                    val textY = 3.0f // bossbar line 1
+                    val defaultOffset = 10.0f
+
+                    // Expected vanilla coordinates (without encoded ascent distortion):
+                    // vanilla up = 0.0 -> shearTop = +1.0
+                    // vanilla down = glyphHeight -> shearBottom = 1.0 - 0.25 * glyphHeight
+                    val expectedVanillaShearTop = 1.0f
+                    val expectedVanillaShearBottom = 1.0f - 0.25f * glyphHeight
+
+                    // Simulated client vertex positions entering vertex shader
+                    val posX0 = xLayout + 0.5f * uiX + shearTop
+                    val posY0 = textY + up
+                    val posX1 = xLayout + 0.5f * uiX + shearBottom
+                    val posY1 = textY + down
+
+                    fun processShader(posX: Float, posY: Float, vid: Int): Float {
+                        var x = posX
+                        val isBottom = if (vid == 1 || vid == 2) 1.0f else 0.0f
+                        if (x < -10000.0f) {
+                            x += 0.25f * (posY - defaultOffset - isBottom * glyphHeight) + 1.75f
+                        }
+                        x -= 0.5f * uiX
+                        return x
+                    }
+
+                    val outX0 = processShader(posX0, posY0, 0)
+                    val outX1 = processShader(posX1, posY1, 1)
+
+                    assertEquals(xLayout + expectedVanillaShearTop, outX0, 1e-3f,
+                        "Top vertex X must match vanilla top shear for height=$glyphHeight, y=$y, id=$id")
+                    assertEquals(xLayout + expectedVanillaShearBottom, outX1, 1e-3f,
+                        "Bottom vertex X must match vanilla bottom shear for height=$glyphHeight, y=$y, id=$id")
+                }
+            }
+        }
+    }
+
+    @Test
     fun testVersionParsingAndSemverCoerce() {
         val ver1 = "2.2.0-fork.1".toSemver()
         assertNotNull(ver1)

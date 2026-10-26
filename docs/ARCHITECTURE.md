@@ -150,3 +150,64 @@ To provide both exact 24-bit text color and exact 24-bit shadow color in client 
 4. **Buffer Order Invariant:** Because Copy 2 vertices are appended to `BufferBuilder` after Copy 1 vertices, Minecraft's 2D GUI pipeline renders Copy 2 strictly on top of Copy 1.
 5. **Single-Copy Optimization:** If no leaf node has shadow, BetterHud emits only 1 copy (M = 240), eliminating quad doubling for unshadowed text.
 6. **Fallback Policy (`text-shadow-fallback`):** When duration exceeds ~115 ticks (M > 120), layout gracefully uses `exact` (smooth text without shadow) or `server` (server-side rendering with shadow).
+
+---
+
+## 8. Italic Glyph Shear Compensation Architecture
+
+### 8.1 Vanilla Minecraft 26.1.2 Reference
+In vanilla Minecraft client 26.1.2 (`net.minecraft.client.gui.font.glyphs.BakedSheetGlyph.java`, lines 42-53):
+```java
+float shearTop = italic ? 1.0F - 0.25F * this.up : 0.0F;
+float shearBottom = italic ? 1.0F - 0.25F * this.down : 0.0F;
+```
+And in `net.minecraft.client.gui.font.GlyphBitmap.java`:
+```java
+this.up = 7.0F - this.ascent;
+this.down = this.up + (float)this.height;
+```
+For a standard font glyph (`ascent = 7`, `height = 8`):
+$$\text{up} = 7.0 - 7.0 = 0.0F \implies \text{shearTop} = 1.0F - 0.25F \times 0.0 = \mathbf{+1.00\text{ GUI-px}}$$
+$$\text{down} = 0.0 + 8.0 = 8.0F \implies \text{shearBottom} = 1.0F - 0.25F \times 8.0 = \mathbf{-1.00\text{ GUI-px}}$$
+
+### 8.2 Why BetterHud Encoded Fonts Distort Italic
+BetterHud encodes layout ID and $Y$-coordinates into font providers via negative ascent:
+$$\text{ascent} = -A = -((id + 1024 \ll 13) + 4095 + yLayout)$$
+Because $A \approx 8.4\text{M}..16.8\text{M}$, Minecraft's client CPU computes:
+$$\text{up} = 7.0 - (-A) = 7.0 + A$$
+$$\text{shearTop} = 1.0 - 0.25 \times (7.0 + A) = -0.75 - 0.25 \times A \approx -2\,100\,000\text{ px}$$
+This moves the glyph millions of pixels off-screen to the left ($pos.x < -10000.0$).
+
+### 8.3 History and Evolution of the Compensation Formula
+
+| Version / Commit | GLSL Expression | Top Shear ($H=8$) | Bottom Shear ($H=8$) | Error vs Vanilla | Notes |
+|---|---|---|---|---|---|
+| **Upstream (`8f4b11dc`)** | *(None)* | $\approx -2.1\text{M}$ | $\approx -2.1\text{M}$ | $\approx -2.1\text{M}$ px | Italic text flew completely off-screen |
+| **Fork Initial (`60ec98b9`)** | `0.25 * float((bit<<13) + 4095 + 10)` | $+1.75 - 0.25y$ | $+1.75 - 0.25y$ | $-0.25y + 0.75$ px | Ignored layout $y$ coordinate; no height slant |
+| **Commit `538299dd` (H1)** | `0.25 * (pos.y - 10.0 - isBottom * 8.0)` | $-0.75$ px | $-2.75$ px | **$-1.75$ px** | Accounted for $y$, but omitted $0.25 \times \text{ascent}$ |
+| **Current (`47990041`)** | `0.25 * (pos.y - 10.0 - isBottom * 8.0) + 1.75` | **$+1.00$ px** | **$-1.00$ px** | **$0.000000$ px** | Exactly restores vanilla slant center |
+
+### 8.4 Analytical Derivation of the Unified Formula
+At entry to `text.vsh`:
+- Top vertex: $pos.y_{\text{top}} = textY + \text{up} = textY + 7.0 + A$
+- Bottom vertex: $pos.y_{\text{bottom}} = textY + \text{down} = textY + 7.0 + A + H$
+
+In vanilla Minecraft client 26.1.2, BossHealthOverlay text is drawn at:
+$$textY = 3.0 + 19.0 \times (\text{line} - 1)$$
+For bossbar line 1, $textY = 3.0$.
+Since $DEFAULT\_OFFSET = 10.0 = textY + 7.0$:
+$$pos.y - DEFAULT\_OFFSET = \begin{cases} A, & \text{top vertex} \\ A + H, & \text{bottom vertex} \end{cases}$$
+
+Therefore:
+$$pos.y - DEFAULT\_OFFSET - isBottom \times H = A$$
+The required displacement to cancel client distortion while preserving vanilla slant is:
+$$\Delta X = 0.25 \times A + 1.75$$
+Substituting $A$:
+$$\mathbf{\Delta X = 0.25 \times (pos.y - DEFAULT\_OFFSET - isBottom \times H) + 1.75}$$
+Or in terms of pure physical screen coordinates:
+$$\mathbf{\Delta X = 0.25 \times (pos.y - textY - isBottom \times H)}$$
+
+### 8.5 Server Mode vs Client Mode Invariance
+Because `text.vsh` is shared across all HUD elements:
+1. **Non-italic server text:** Completely unaffected ($pos.x > 0$), 100% bit-for-bit invariant ($0.000000$ px discrepancy verified by GPU Transform Feedback).
+2. **Italic server text:** Shifted right by $+1.75$ GUI-pixels to align with true vanilla center (verified by GPU Transform Feedback in Test 6).

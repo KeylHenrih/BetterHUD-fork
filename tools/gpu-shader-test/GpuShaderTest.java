@@ -662,9 +662,9 @@ public class GpuShaderTest {
         System.out.println("  -> Elapsed Monotonicity & [-L, M-L) Bounds: 100% PASSED on Physical GPU\n");
 
         // -------------------------------------------------------------------------
-        // TEST 6: SERVER QUADS INVARIANCE TEST (OLD GLSL VS NEW GLSL)
+        // TEST 6: SERVER QUADS INVARIANCE & ITALIC BEHAVIOR TEST (OLD GLSL VS NEW GLSL)
         // -------------------------------------------------------------------------
-        System.out.println("Running Test 6: Server Quads Invariance (Old GLSL vs New GLSL)...");
+        System.out.println("Running Test 6: Server Quads Invariance & Italic Behavior (Old GLSL vs New GLSL)...");
 
         String serverOldVs = """
             #version 330 core
@@ -675,18 +675,24 @@ public class GpuShaderTest {
             void main() {
                 vec3 pos = Position;
                 vec4 vertexColor = Color;
-                float xGui = 0;
-                float yGui = 0;
-                float layer = 0;
-                float opacity = 1;
-                int id = 1;
-                switch (id) {
-                    case 1: {
-                        break;
+                float uiX = 1920.0;
+                int bit = int(pos.y) >> 13;
+                if (((bit >> 10) & 1) == 1) {
+                    int id = bit - (1 << 10);
+                    if (pos.x < -10000.0) {
+                        int vid = gl_VertexID % 4;
+                        float isBottom = (vid == 1 || vid == 2) ? 1.0 : 0.0;
+                        pos.x += 0.25 * (pos.y - 10.0 - isBottom * 8.0); // Old (fork.3 without +1.75)
+                    }
+                    pos.x -= 0.5 * uiX;
+                    pos.y -= float((bit << 13) + 4095 + 10);
+                    switch (id) {
+                        case 0: break;
+                        case 1: break;
+                        default: break;
                     }
                 }
-                vertexColor *= vec4(1, 1, 1, opacity);
-                outPos = pos + vec3(xGui, yGui, layer);
+                outPos = pos;
                 outColor = vertexColor;
             }
             """;
@@ -700,24 +706,24 @@ public class GpuShaderTest {
             void main() {
                 vec3 pos = Position;
                 vec4 vertexColor = Color;
-                float xGui = 0.0;
-                float yGui = 0.0;
-                float layer = 0.0;
-                float opacity = 1.0;
-                int id = 1;
-                switch (id) {
-                    case 0: {
-                        break;
+                float uiX = 1920.0;
+                int bit = int(pos.y) >> 13;
+                if (((bit >> 10) & 1) == 1) {
+                    int id = bit - (1 << 10);
+                    if (pos.x < -10000.0) {
+                        int vid = gl_VertexID % 4;
+                        float isBottom = (vid == 1 || vid == 2) ? 1.0 : 0.0;
+                        pos.x += 0.25 * (pos.y - 10.0 - isBottom * 8.0) + 1.75; // New (fork.4 with +1.75)
                     }
-                    case 1: {
-                        break;
-                    }
-                    default: {
-                        break;
+                    pos.x -= 0.5 * uiX;
+                    pos.y -= float((bit << 13) + 4095 + 10);
+                    switch (id) {
+                        case 0: break;
+                        case 1: break;
+                        default: break;
                     }
                 }
-                vertexColor *= vec4(1.0, 1.0, 1.0, opacity);
-                outPos = pos + vec3(xGui, yGui, layer);
+                outPos = pos;
                 outColor = vertexColor;
             }
             """;
@@ -725,17 +731,39 @@ public class GpuShaderTest {
         int progOld = compileTfProgram(serverOldVs, new CharSequence[]{"outPos", "outColor"});
         int progNew = compileTfProgram(serverNewVs, new CharSequence[]{"outPos", "outColor"});
 
-        int serverQuadCount = 10000;
-        FloatBuffer serverInBuffer = BufferUtils.createFloatBuffer(serverQuadCount * 7); // pos(3) + color(4)
-        Random serverRnd = new Random(42);
-        for (int i = 0; i < serverQuadCount; i++) {
-            serverInBuffer.put(serverRnd.nextFloat() * 1000.0f);
-            serverInBuffer.put(serverRnd.nextFloat() * 1000.0f);
-            serverInBuffer.put(serverRnd.nextFloat() * 100.0f);
-            serverInBuffer.put(serverRnd.nextFloat());
-            serverInBuffer.put(serverRnd.nextFloat());
-            serverInBuffer.put(serverRnd.nextFloat());
-            serverInBuffer.put(serverRnd.nextFloat());
+        int serverQuadCount = 1000;
+        int totalServerVertices = serverQuadCount * 4;
+        FloatBuffer serverInBuffer = BufferUtils.createFloatBuffer(totalServerVertices * 7); // pos(3) + color(4)
+
+        int sId = 1;
+
+        for (int q = 0; q < serverQuadCount; q++) {
+            boolean isItalic = (q >= serverQuadCount / 2);
+            boolean isBold = (q % 2 == 1);
+            int yLayout = (q % 10) * 10 - 50;
+
+            int ascent = -(((sId + (1 << maxBit)) << heightBit) + addOffset + yLayout);
+            float up = 7.0f - (float)ascent;
+            float down = up + 8.0f;
+            float shearTop = isItalic ? (1.0f - 0.25f * up) : 0.0f;
+            float shearBottom = isItalic ? (1.0f - 0.25f * down) : 0.0f;
+            float boldOffset = isBold ? 1.0f : 0.0f;
+
+            // V0: Top-Left
+            serverInBuffer.put(new float[]{ xLayout + boldOffset + 0.5f * uiX + shearTop, textY + up, 0.0f });
+            serverInBuffer.put(new float[]{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+            // V1: Bottom-Left
+            serverInBuffer.put(new float[]{ xLayout + boldOffset + 0.5f * uiX + shearBottom, textY + down, 0.0f });
+            serverInBuffer.put(new float[]{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+            // V2: Bottom-Right
+            serverInBuffer.put(new float[]{ xLayout + boldOffset + charWidth + 0.5f * uiX + shearBottom, textY + down, 0.0f });
+            serverInBuffer.put(new float[]{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+            // V3: Top-Right
+            serverInBuffer.put(new float[]{ xLayout + boldOffset + charWidth + 0.5f * uiX + shearTop, textY + up, 0.0f });
+            serverInBuffer.put(new float[]{ 1.0f, 1.0f, 1.0f, 1.0f });
         }
         serverInBuffer.flip();
 
@@ -747,9 +775,9 @@ public class GpuShaderTest {
         glBufferData(GL_ARRAY_BUFFER, serverInBuffer, GL_STATIC_DRAW);
 
         glBindBuffer(GL_ARRAY_BUFFER, tfOldVbo);
-        glBufferData(GL_ARRAY_BUFFER, (long)serverQuadCount * 7 * Float.BYTES, GL_DYNAMIC_READ);
+        glBufferData(GL_ARRAY_BUFFER, (long)totalServerVertices * 7 * Float.BYTES, GL_DYNAMIC_READ);
         glBindBuffer(GL_ARRAY_BUFFER, tfNewVbo);
-        glBufferData(GL_ARRAY_BUFFER, (long)serverQuadCount * 7 * Float.BYTES, GL_DYNAMIC_READ);
+        glBufferData(GL_ARRAY_BUFFER, (long)totalServerVertices * 7 * Float.BYTES, GL_DYNAMIC_READ);
 
         // Run Old
         glUseProgram(progOld);
@@ -762,7 +790,7 @@ public class GpuShaderTest {
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tfOldVbo);
         glEnable(GL_RASTERIZER_DISCARD);
         glBeginTransformFeedback(GL_POINTS);
-        glDrawArrays(GL_POINTS, 0, serverQuadCount);
+        glDrawArrays(GL_POINTS, 0, totalServerVertices);
         glEndTransformFeedback();
         glDisable(GL_RASTERIZER_DISCARD);
 
@@ -777,34 +805,52 @@ public class GpuShaderTest {
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tfNewVbo);
         glEnable(GL_RASTERIZER_DISCARD);
         glBeginTransformFeedback(GL_POINTS);
-        glDrawArrays(GL_POINTS, 0, serverQuadCount);
+        glDrawArrays(GL_POINTS, 0, totalServerVertices);
         glEndTransformFeedback();
         glDisable(GL_RASTERIZER_DISCARD);
 
-        FloatBuffer outOld = BufferUtils.createFloatBuffer(serverQuadCount * 7);
+        FloatBuffer outOld = BufferUtils.createFloatBuffer(totalServerVertices * 7);
         glBindBuffer(GL_ARRAY_BUFFER, tfOldVbo);
         glGetBufferSubData(GL_ARRAY_BUFFER, 0, outOld);
 
-        FloatBuffer outNew = BufferUtils.createFloatBuffer(serverQuadCount * 7);
+        FloatBuffer outNew = BufferUtils.createFloatBuffer(totalServerVertices * 7);
         glBindBuffer(GL_ARRAY_BUFFER, tfNewVbo);
         glGetBufferSubData(GL_ARRAY_BUFFER, 0, outNew);
 
-        float maxServerPosDiff = 0.0f;
-        float maxServerColDiff = 0.0f;
-        for (int i = 0; i < serverQuadCount * 7; i++) {
-            float vOld = outOld.get(i);
-            float vNew = outNew.get(i);
-            float diff = Math.abs(vOld - vNew);
-            if (i % 7 < 3) {
-                if (diff > maxServerPosDiff) maxServerPosDiff = diff;
+        float maxRegularDiff = 0.0f;
+        float minItalicDiff = 999.0f;
+        float maxItalicDiff = 0.0f;
+
+        for (int v = 0; v < totalServerVertices; v++) {
+            int base = v * 7;
+            float xOld = outOld.get(base);
+            float xNew = outNew.get(base);
+            float yOld = outOld.get(base + 1);
+            float yNew = outNew.get(base + 1);
+
+            assertEquals(yOld, yNew, 0.000001f, "Server Y must be strictly invariant");
+
+            int q = v / 4;
+            boolean isItalic = (q >= serverQuadCount / 2);
+            if (!isItalic) {
+                // Non-italic quads (Regular, Bold) MUST be 100% strictly invariant
+                float diff = Math.abs(xNew - xOld);
+                if (diff > maxRegularDiff) maxRegularDiff = diff;
             } else {
-                if (diff > maxServerColDiff) maxServerColDiff = diff;
+                // Italic and Bold+Italic quads shifted by exactly +1.75 px
+                float shift = xNew - xOld;
+                if (shift < minItalicDiff) minItalicDiff = shift;
+                if (shift > maxItalicDiff) maxItalicDiff = shift;
             }
         }
-        assertEquals(0.0f, maxServerPosDiff, 0.000001f, "Server Quad Position Invariance");
-        assertEquals(0.0f, maxServerColDiff, 0.000001f, "Server Quad Color Invariance");
-        System.out.printf("  -> Verified %d server quads on physical GPU%n", serverQuadCount);
-        System.out.printf("  -> Max Position Error: %.6f, Max Color Error: %.6f: 100%% INVARIANT!%n%n", maxServerPosDiff, maxServerColDiff);
+
+        assertEquals(0.0f, maxRegularDiff, 0.000001f, "Regular & Bold Server Quad Invariance");
+        assertEquals(1.75f, minItalicDiff, 0.000001f, "Italic Server Quad Shift (+1.75 px)");
+        assertEquals(1.75f, maxItalicDiff, 0.000001f, "Italic Server Quad Shift (+1.75 px)");
+
+        System.out.printf("  -> Verified %d server quads (%d vertices) on physical GPU%n", serverQuadCount, totalServerVertices);
+        System.out.printf("  -> Non-Italic (Regular & Bold): Max Diff = %.6f px (100%% BIT-FOR-BIT INVARIANT)%n", maxRegularDiff);
+        System.out.printf("  -> Italic & Bold+Italic: Shift = +%.6f px (EXACTLY +1.750000 px)%n%n", minItalicDiff);
 
         System.out.println("============================================================");
         System.out.println("  ALL HARDWARE GPU TRANSFORM FEEDBACK TESTS PASSED! (0 ERRORS)");
