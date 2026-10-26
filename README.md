@@ -156,7 +156,7 @@ cd BetterHUD-fork
 # Сборка готового плагина для Bukkit / Paper / Purpur
 ./gradlew :bootstrap:bukkit:shadowJar --no-daemon
 
-# Собранный файл: build/libs/BetterHud-bukkit-2.2.0-fork.3.jar
+# Собранный файл: build/libs/BetterHud-bukkit-2.2.0-fork.4.jar
 ```
 
 ---

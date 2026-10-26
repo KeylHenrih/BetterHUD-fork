@@ -12,7 +12,7 @@ This guide provides a comprehensive checklist for testing BetterHUD client-side 
 
 ## 1. Prerequisites & Installation
 
-1. Copy the built `BetterHud-bukkit-2.2.0-fork.3.jar` into your server's `plugins/` directory.
+1. Copy the built `BetterHud-bukkit-2.2.0-fork.4.jar` into your server's `plugins/` directory.
 2. Ensure you are running Minecraft Java Edition 1.21.4 through 1.21.6 / 26.1+.
 3. Join the server and verify that the plugin loaded cleanly:
    ```
