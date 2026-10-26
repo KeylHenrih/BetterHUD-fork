@@ -9,8 +9,8 @@ Comprehensive measurement across real user screenshots:
 from PIL import Image
 import numpy as np
 
-path_vanilla = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_22.57.03.png"
-path_bh = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_22.59.43.png"
+path_vanilla = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_23.32.40.png"
+path_bh = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_23.36.57.png"
 
 # Vanilla etalon
 img_v = np.array(Image.open(path_vanilla).convert("RGB"))
@@ -76,9 +76,9 @@ tests = [
     ("Client Mode", "Regular vs Italic", "Y = 50",   702, 725, 960, 995,   1105, 1145, "color", False),
     ("Client Mode", "Bold vs Bold+Italic", "Y = 50",   732, 755, 860, 895,   1035, 1075, "color", True),
     # Server Mode (white blocks)
-    ("Server Mode", "Regular vs Italic", "Y = -100", 252, 275, 1125, 1155, 1275, 1310, "white", False),
-    ("Server Mode", "Regular vs Italic", "Y = 0",    552, 575, 835, 865,   985, 1025,  "white", False),
-    ("Server Mode", "Regular vs Italic", "Y = 50",   702, 725, 565, 595,   715, 755,   "white", False),
+    ("Server Mode", "Regular vs Italic", "Y = -100", 252, 275, 1120, 1160, 1260, 1310, "white", False),
+    ("Server Mode", "Regular vs Italic", "Y = 0",    552, 575, 830,  870,  970,  1020,  "white", False),
+    ("Server Mode", "Regular vs Italic", "Y = 50",   702, 725, 560,  600,  700,  750,   "white", False),
 ]
 
 print("==========================================================================================================================================")
