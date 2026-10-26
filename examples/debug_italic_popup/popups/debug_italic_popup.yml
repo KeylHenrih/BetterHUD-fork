@@ -1,0 +1,20 @@
+# =============================================================
+#   BetterHud — Debug Italic Test Popup
+#   Command: /hud debug-popup debug_italic_popup hold
+# =============================================================
+
+debug_italic_popup:
+  duration: 100
+  queue: false
+  push: false
+  layouts:
+    1:
+      name: debug-italic-server
+      gui:
+        x: 50
+        y: 50
+    2:
+      name: debug-italic-client
+      gui:
+        x: 50
+        y: 50

@@ -2,6 +2,9 @@ package kr.toxicity.hud.debug
 
 import kr.toxicity.hud.api.placeholder.HudPlaceholder
 import kr.toxicity.hud.manager.PlaceholderManagerImpl
+import kr.toxicity.hud.api.yaml.YamlObject
+import kr.toxicity.hud.yaml.YamlObjectImpl
+import org.yaml.snakeyaml.Yaml
 import java.util.function.Function
 
 object DebugProbeHelper {
@@ -311,5 +314,76 @@ object DebugProbeHelper {
             "    vertexColor = Color;",
             "}"
         )
+    }
+
+    private fun generateItalicLayoutYaml(isClient: Boolean): String {
+        val xPos = if (isClient) 40 else -140
+        val animSection = if (isClient) """
+animations:
+  type: play_once
+  duration: 60
+  x-equation: "0"
+  y-equation: "0"
+""" else ""
+
+        val heights = listOf(-100, 0, 50, 200)
+        val styles = listOf(
+            "norm" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal",
+            "ital" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i>",
+            "bold" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b>",
+            "bita" to "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b>"
+        )
+
+        val sb = StringBuilder()
+        sb.append("texts:\n")
+        for (y in heights) {
+            val yKey = if (y < 0) "m${-y}" else "$y"
+            for ((idx, s) in styles.withIndex()) {
+                val lineY = y + idx * 10
+                sb.append("  ${s.first}_$yKey:\n")
+                sb.append("    name: default_font\n")
+                sb.append("    pattern: \"${s.second} Y=$y</color></shadow>\"\n")
+                sb.append("    align: left\n")
+                sb.append("    x: $xPos\n")
+                sb.append("    y: $lineY\n")
+            }
+        }
+        sb.append(animSection)
+        return sb.toString()
+    }
+
+    private val debugItalicPopupYaml = """
+duration: 100
+queue: false
+push: false
+layouts:
+  1:
+    name: debug-italic-server
+    gui:
+      x: 50
+      y: 50
+  2:
+    name: debug-italic-client
+    gui:
+      x: 50
+      y: 50
+"""
+
+    fun injectDebugItalicLayouts(consumer: (String, YamlObject) -> Unit) {
+        val yamlParser = Yaml()
+        val serverYaml = generateItalicLayoutYaml(false)
+        val clientYaml = generateItalicLayoutYaml(true)
+
+        val serverMap = (yamlParser.load<Map<*, *>>(serverYaml) ?: emptyMap<Any, Any>()).toMutableMap()
+        val clientMap = (yamlParser.load<Map<*, *>>(clientYaml) ?: emptyMap<Any, Any>()).toMutableMap()
+
+        consumer("debug-italic-server", YamlObjectImpl("debug-italic-server", serverMap))
+        consumer("debug-italic-client", YamlObjectImpl("debug-italic-client", clientMap))
+    }
+
+    fun injectDebugItalicPopup(consumer: (String, YamlObject) -> Unit) {
+        val yamlParser = Yaml()
+        val popupMap = (yamlParser.load<Map<*, *>>(debugItalicPopupYaml) ?: emptyMap<Any, Any>()).toMutableMap()
+        consumer("debug_italic_popup", YamlObjectImpl("debug_italic_popup", popupMap))
     }
 }

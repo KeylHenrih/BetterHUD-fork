@@ -27,7 +27,7 @@ object LayoutManager : BetterHudManager {
 
     override fun reload(workingDirectory: File, info: ReloadInfo, resource: GlobalResource) {
         workingDirectory.subFolder("layouts").forEachAllYaml(info.sender) { file, s, yamlObject ->
-            val isDebugLayout = file.name.startsWith("debug_probe") || file.name.startsWith("debug_image") || file.name.startsWith("debug_color") || file.name.startsWith("debug-color")
+            val isDebugLayout = file.name.startsWith("debug_probe") || file.name.startsWith("debug_image") || file.name.startsWith("debug_color") || file.name.startsWith("debug-color") || file.name.startsWith("debug_italic") || file.name.startsWith("debug-italic")
             if (isDebugLayout && !ConfigManagerImpl.animationDebugProbe && !ConfigManagerImpl.debug()) {
                 return@forEachAllYaml
             }
@@ -37,6 +37,15 @@ object LayoutManager : BetterHudManager {
                 }
             }.handleFailure(info) {
                 "Unable to load this layout: $s in ${file.name}"
+            }
+        }
+        if (ConfigManagerImpl.animationDebugProbe || ConfigManagerImpl.debug()) {
+            kr.toxicity.hud.debug.DebugProbeHelper.injectDebugItalicLayouts { name, yaml ->
+                if (!layoutMap.containsKey(name)) {
+                    layoutMap.putSync("layout") {
+                        LayoutGroup(name, info.sender, yaml)
+                    }
+                }
             }
         }
     }

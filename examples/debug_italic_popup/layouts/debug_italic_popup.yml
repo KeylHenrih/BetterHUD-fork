@@ -1,0 +1,215 @@
+# =============================================================
+#   BetterHud — Debug Italic Shear Test Layouts
+#   Server column (x: -140) vs Client column (x: 40)
+#   Rows: normal, italic, bold, bold+italic with colored shadow
+#   Heights: y in {-100, 0, 50, 200}
+# =============================================================
+
+debug-italic-server:
+  texts:
+    norm_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=-100</color></shadow>"
+      align: left
+      x: -140
+      y: -100
+    ital_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=-100</color></shadow>"
+      align: left
+      x: -140
+      y: -90
+    bold_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=-100</color></shadow>"
+      align: left
+      x: -140
+      y: -80
+    bita_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=-100</color></shadow>"
+      align: left
+      x: -140
+      y: -70
+
+    norm_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=0</color></shadow>"
+      align: left
+      x: -140
+      y: 0
+    ital_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=0</color></shadow>"
+      align: left
+      x: -140
+      y: 10
+    bold_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=0</color></shadow>"
+      align: left
+      x: -140
+      y: 20
+    bita_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=0</color></shadow>"
+      align: left
+      x: -140
+      y: 30
+
+    norm_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=50</color></shadow>"
+      align: left
+      x: -140
+      y: 50
+    ital_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=50</color></shadow>"
+      align: left
+      x: -140
+      y: 60
+    bold_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=50</color></shadow>"
+      align: left
+      x: -140
+      y: 70
+    bita_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=50</color></shadow>"
+      align: left
+      x: -140
+      y: 80
+
+    norm_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=200</color></shadow>"
+      align: left
+      x: -140
+      y: 200
+    ital_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=200</color></shadow>"
+      align: left
+      x: -140
+      y: 210
+    bold_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=200</color></shadow>"
+      align: left
+      x: -140
+      y: 220
+    bita_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=200</color></shadow>"
+      align: left
+      x: -140
+      y: 230
+
+debug-italic-client:
+  texts:
+    norm_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=-100</color></shadow>"
+      align: left
+      x: 40
+      y: -100
+    ital_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=-100</color></shadow>"
+      align: left
+      x: 40
+      y: -90
+    bold_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=-100</color></shadow>"
+      align: left
+      x: 40
+      y: -80
+    bita_m100:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=-100</color></shadow>"
+      align: left
+      x: 40
+      y: -70
+
+    norm_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=0</color></shadow>"
+      align: left
+      x: 40
+      y: 0
+    ital_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=0</color></shadow>"
+      align: left
+      x: 40
+      y: 10
+    bold_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=0</color></shadow>"
+      align: left
+      x: 40
+      y: 20
+    bita_0:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=0</color></shadow>"
+      align: left
+      x: 40
+      y: 30
+
+    norm_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=50</color></shadow>"
+      align: left
+      x: 40
+      y: 50
+    ital_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=50</color></shadow>"
+      align: left
+      x: 40
+      y: 60
+    bold_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=50</color></shadow>"
+      align: left
+      x: 40
+      y: 70
+    bita_50:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=50</color></shadow>"
+      align: left
+      x: 40
+      y: 80
+
+    norm_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF>Normal Y=200</color></shadow>"
+      align: left
+      x: 40
+      y: 200
+    ital_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><i>Italic</i> Y=200</color></shadow>"
+      align: left
+      x: 40
+      y: 210
+    bold_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b>Bold</b> Y=200</color></shadow>"
+      align: left
+      x: 40
+      y: 220
+    bita_200:
+      name: default_font
+      pattern: "<color:#FFFF00>█</color> <shadow:#FF5555><color:#FFFFFF><b><i>BoldItalic</i></b> Y=200</color></shadow>"
+      align: left
+      x: 40
+      y: 230
+  animations:
+    type: play_once
+    duration: 60
+    x-equation: "0"
+    y-equation: "0"

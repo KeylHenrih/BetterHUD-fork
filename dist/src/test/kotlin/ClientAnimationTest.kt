@@ -2590,4 +2590,60 @@ class ClientAnimationTest {
         }
         assertEquals(1, warnings.size, "Rate-limited warning should log exactly once within cooldown window: $warnings")
     }
+
+    @Test
+    fun testDebugItalicProbePopupStructureAndInjection() {
+        val injectedLayouts = mutableMapOf<String, kr.toxicity.hud.api.yaml.YamlObject>()
+        kr.toxicity.hud.debug.DebugProbeHelper.injectDebugItalicLayouts { name, yaml ->
+            injectedLayouts[name] = yaml
+        }
+        val injectedPopups = mutableMapOf<String, kr.toxicity.hud.api.yaml.YamlObject>()
+        kr.toxicity.hud.debug.DebugProbeHelper.injectDebugItalicPopup { name, yaml ->
+            injectedPopups[name] = yaml
+        }
+
+        // 1. Verify popup definition
+        assertTrue(injectedPopups.containsKey("debug_italic_popup"), "debug_italic_popup must be injected")
+        val popupYaml = injectedPopups["debug_italic_popup"]!!
+        val popupLayouts = popupYaml["layouts"]?.asObject()
+        assertNotNull(popupLayouts, "debug_italic_popup must have layouts section")
+        assertEquals(2, popupLayouts!!.get().size, "debug_italic_popup must have 2 layouts (server and client)")
+
+        // 2. Verify server and client layouts
+        assertTrue(injectedLayouts.containsKey("debug-italic-server"), "Server layout must be present")
+        assertTrue(injectedLayouts.containsKey("debug-italic-client"), "Client layout must be present")
+
+        val serverYaml = injectedLayouts["debug-italic-server"]!!
+        val clientYaml = injectedLayouts["debug-italic-client"]!!
+
+        val serverTexts = serverYaml["texts"]?.asObject()?.get() ?: emptyMap<Any, Any>()
+        val clientTexts = clientYaml["texts"]?.asObject()?.get() ?: emptyMap<Any, Any>()
+
+        assertEquals(16, serverTexts.size, "Server layout must contain 16 text rows (4 heights x 4 styles)")
+        assertEquals(16, clientTexts.size, "Client layout must contain 16 text rows (4 heights x 4 styles)")
+
+        // 3. Verify anim section present on client, absent on server
+        assertNull(serverYaml["animations"], "Server layout must have no animations")
+        val clientAnim = clientYaml["animations"]?.asObject()
+        assertNotNull(clientAnim, "Client layout must have animations section")
+        assertEquals("play_once", clientAnim!!["type"]?.asString()?.lowercase())
+        assertEquals(60, clientAnim["duration"]?.asInt())
+
+        // 4. Verify each row contains reference glyph █ with yellow color and red shadow
+        for ((key, row) in serverTexts) {
+            val map = row as Map<*, *>
+            val pattern = map["pattern"] as String
+            assertTrue(pattern.contains("<color:#FFFF00>█</color>"), "Row $key must have reference glyph █ in yellow")
+            assertTrue(pattern.contains("<shadow:#FF5555>"), "Row $key must have colored shadow #FF5555")
+            assertEquals(-140, (map["x"] as Number).toInt(), "Server column X must be -140")
+        }
+
+        for ((key, row) in clientTexts) {
+            val map = row as Map<*, *>
+            val pattern = map["pattern"] as String
+            assertTrue(pattern.contains("<color:#FFFF00>█</color>"), "Row $key must have reference glyph █ in yellow")
+            assertTrue(pattern.contains("<shadow:#FF5555>"), "Row $key must have colored shadow #FF5555")
+            assertEquals(40, (map["x"] as Number).toInt(), "Client column X must be +40")
+        }
+    }
 }
