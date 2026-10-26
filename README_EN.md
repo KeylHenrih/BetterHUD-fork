@@ -49,6 +49,29 @@
 
 ---
 
+## HUD Elements and Progress Bars (Listener Bars)
+
+### Which elements run in client mode (144+ FPS):
+Client shader mode supports smooth hardware progress fill for images configured with `type: listener`:
+- **Health Bar:** Continuous smooth interpolation when taking damage or regenerating health.
+- **Food Bar:** Smooth filling of the hunger level bar.
+- **Experience Bar:** Continuous smooth progression of player level and exp ratio.
+- **Air / Oxygen Bar:** Smooth depletion of oxygen bar while submerged underwater.
+- **Custom RPG Stats (Mana, Stamina, Energy, Shield):** Any progress bar bound to numeric placeholders (`(number)string:player-mana`).
+
+### How the mode is determined:
+1. In the image configuration file (`images/<name>.yml`), `type: listener` is defined.
+2. If `mode: client` is set in the `setting:` block or top-level (or globally via `animation-mode: client` / `hybrid`), the image is not split into 25–200 individual frame sprites; instead, it is generated as a unified texture (`_client.png`).
+3. The server transmits vertex color channels: `Color.g` (start value `from`), `Color.b` (target value `to`), and `Color.r` (start tick `tStart`). The vertex shader interpolates the clipping coordinate (`hudFill.x`) based on in-game `GameTime` using the configured easing function (`linear`, `ease_out_cubic`, `ease_out_quad`, etc.).
+
+### What remains in server mode (SERVER):
+- **Discrete Icon Sequences (Sequence):** Sprites with discrete frame steps or separated heart icons without smooth clipping.
+- **Player Heads (Head):** Rendered on the server due to dynamic Mojang skin fetching, which does not support shader UV modification.
+- **Numeric Text Counters (HP/Mana Numbers):** Numeric text placeholders (`HP: 18/20`) update at server tick rate (20 TPS), while the graphical bar beneath them moves at monitor refresh rate (144+ FPS).
+- **Static Backgrounds (Single):** Background backing sprites (`empty_bar.png`) that do not require dynamic fill animation.
+
+---
+
 ## Testing & Verification Status
 
 > [!NOTE]
@@ -129,12 +152,14 @@ animation-debug-probe: false
 
 ## Administration Commands
 
-- `/hud animation-mode <player|self> <client|server|auto>`: Changes animation mode for a specific player without server reload (implemented, not verified in live client with multiple concurrent players).
+- `/hud popup show <player|all> <popup>`: Displays the specified popup to a player or all online players (e.g. `/hud popup show all damage_indicator_1` or `/hud popup show Steve item_pickup`).
+- `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup on screen for visual inspection and alignment (`hold` to freeze indefinitely, `stop` to remove).
+- `/hud animation-mode <self|player> [client|server|auto]`: Queries or changes animation mode for yourself or a target player without server reload (implemented, not verified in live client with multiple concurrent players).
   - `auto`: Uses client animations on Java Edition, falls back to server mode on Bedrock Edition.
-  - `server`: Forces classic server-side rendering.
-  - `client`: Enables GPU client-side rendering.
-- `/hud debug-anim`: Displays the real-time registry of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), and dual mode M divisors.
-- `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup for visual inspection.
+  - `server`: Forces classic server-side rendering (20 TPS).
+  - `client`: Forces GPU client-side rendering (144+ FPS).
+- `/hud debug-anim [player|all]`: Displays real-time inspection tree of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), registered modulus $M$, and lookahead alpha values.
+- `/hud reload`: Safely reloads BetterHud configuration and rebuilds shader resource packs.
 
 ---
 
