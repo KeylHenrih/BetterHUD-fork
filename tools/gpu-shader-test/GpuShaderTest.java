@@ -50,11 +50,11 @@ public class GpuShaderTest {
         int M = 48; // Dual mode M <= 120, 2*M = 96 <= 254
         // Case 1: Image Shader (isText = false, moduloM = 48)
         kr.toxicity.hud.shader.HudShader imgShader = new kr.toxicity.hud.shader.HudShader(
-            gui, scale, 1, 0, 1.0, 0, anim, null, null, false, false, M
+            gui, scale, 1, 0, 1.0, 0, anim, null, null, false, false, M, ""
         );
         // Case 2: Text Shader (isText = true, moduloM = 48)
         kr.toxicity.hud.shader.HudShader textShader = new kr.toxicity.hud.shader.HudShader(
-            gui, scale, 2, 0, 1.0, 0, anim, null, null, true, false, M
+            gui, scale, 2, 0, 1.0, 0, anim, null, null, true, false, M, ""
         );
 
         java.util.TreeMap<kr.toxicity.hud.shader.HudShader, java.util.List<kotlin.jvm.functions.Function1<Integer, kotlin.Unit>>> map = new java.util.TreeMap<>();
@@ -299,8 +299,8 @@ public class GpuShaderTest {
             float r = rng.nextInt(256) / 255.0f;
             float g = rng.nextInt(256) / 255.0f;
             float b = rng.nextInt(256) / 255.0f;
-            // Half text layer (1..48), half shadow layer (49..96)
-            int aVal = rng.nextBoolean() ? (rng.nextInt(48) + 1) : (rng.nextInt(48) + 49);
+            // Half text layer (A=11, tStart=10), half shadow layer (A=59, tStart=10) active at gameTime=10
+            int aVal = rng.nextBoolean() ? 11 : 59;
             sweepBuffer.put(new float[]{ 0.0f, 0.0f, 0.0f, r, g, b, aVal / 255.0f, 2.0f });
             sweepCount++;
         }
@@ -316,7 +316,7 @@ public class GpuShaderTest {
                     float r = rng.nextInt(256) / 255.0f;
                     float g = rng.nextInt(256) / 255.0f;
                     float b = rng.nextInt(256) / 255.0f;
-                    int aVal = rng.nextBoolean() ? (rng.nextInt(48) + 1) : (rng.nextInt(48) + 49);
+                    int aVal = rng.nextBoolean() ? 11 : 59;
                     curBuffer.put(new float[]{ 0.0f, 0.0f, 0.0f, r, g, b, aVal / 255.0f, 2.0f });
                 }
                 curBuffer.flip();
