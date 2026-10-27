@@ -28,6 +28,9 @@ if not os.path.exists(path_vanilla):
 if not os.path.exists(path_bh):
     print(f"Error: BetterHud screenshot not found at '{path_bh}'. Provide via --betterhud or $BETTERHUD_SCREENSHOT.")
     sys.exit(1)
+
+# Vanilla etalon
+img_v = np.array(Image.open(path_vanilla).convert("RGB"))
 blue = np.array([52, 152, 219])
 red = np.array([231, 76, 60])
 white = np.array([255, 255, 255])
