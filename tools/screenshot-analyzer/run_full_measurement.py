@@ -6,15 +6,28 @@ Comprehensive measurement across real user screenshots:
 - BetterHud Client and Server mode across multiple layout heights
 - Regular vs Italic, Bold vs Bold+Italic
 """
+import argparse
+import os
+import sys
 from PIL import Image
 import numpy as np
 
-path_vanilla = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_23.32.40.png"
-path_bh = "/home/keyl/.local/share/ModrinthApp/profiles/Fabulously Optimized (1)/screenshots/2026-10-26_23.36.57.png"
+parser = argparse.ArgumentParser(description="Comprehensive measurement across real user screenshots")
+parser.add_argument("--vanilla", default=os.environ.get("VANILLA_SCREENSHOT", "screenshots/2026-10-26_23.32.40.png"), help="Path to vanilla screenshot")
+parser.add_argument("--betterhud", default=os.environ.get("BETTERHUD_SCREENSHOT", "screenshots/2026-10-26_23.36.57.png"), help="Path to BetterHud screenshot")
+parser.add_argument("--scale", type=float, default=3.0, help="GUI scale factor (default: 3.0)")
+args = parser.parse_args()
 
-# Vanilla etalon
-img_v = np.array(Image.open(path_vanilla).convert("RGB"))
-scale = 3.0
+path_vanilla = args.vanilla
+path_bh = args.betterhud
+scale = args.scale
+
+if not os.path.exists(path_vanilla):
+    print(f"Error: Vanilla screenshot not found at '{path_vanilla}'. Provide via --vanilla or $VANILLA_SCREENSHOT.")
+    sys.exit(1)
+if not os.path.exists(path_bh):
+    print(f"Error: BetterHud screenshot not found at '{path_bh}'. Provide via --betterhud or $BETTERHUD_SCREENSHOT.")
+    sys.exit(1)
 blue = np.array([52, 152, 219])
 red = np.array([231, 76, 60])
 white = np.array([255, 255, 255])

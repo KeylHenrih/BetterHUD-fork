@@ -67,12 +67,13 @@ class ConfigParityToolTest {
     fun testAnalyzeConfigurations() {
         val configDirPath = System.getProperty("betterhud.config.dir")
             ?: System.getenv("BETTERHUD_CONFIG_DIR")
-            ?: "/home/keyl/Servers/RevakeMain/plugins/BetterHud"
+            ?: "common-resources/default"
 
-        val configDir = File(configDirPath).let {
-            if (it.exists() && it.isDirectory) it
-            else File("src/main/resources")
-        }
+        val configDir = sequenceOf(
+            File(configDirPath),
+            File("common-resources/default"),
+            File("../common-resources/default")
+        ).firstOrNull { it.exists() && it.isDirectory } ?: File(".")
 
         println("================================================================================")
         println("                BETTERHUD CONFIGURATION PARITY ANALYZER")
