@@ -1,6 +1,8 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
+#define HUD_USE_LOCATION
+
 #CreateConstant
 
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)

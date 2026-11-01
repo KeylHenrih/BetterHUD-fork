@@ -1,6 +1,11 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
+#define HUD_USE_LOCATION
+#ifndef gl_VertexID
+#define gl_VertexID gl_VertexIndex
+#endif
+
 #CreateConstant
 
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)

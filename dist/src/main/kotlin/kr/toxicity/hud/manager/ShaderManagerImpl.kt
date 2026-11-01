@@ -41,8 +41,16 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                     val slowmo = ConfigManagerImpl.animationDebugSlowmo
                     val slowmoStr = if (slowmo != 1.0) " * ${slowmo.toFloat()}" else ""
                     val base = listOf(
+                        "#if defined(VULKAN) || defined(HUD_USE_LOCATION)",
+                        "#ifndef gl_VertexID",
+                        "#define gl_VertexID gl_VertexIndex",
+                        "#endif",
+                        "layout(location = 5) out vec2 hudFill;",
+                        "layout(location = 6) out vec2 hudQuadUV;",
+                        "#else",
                         "out vec2 hudFill;",
                         "out vec2 hudQuadUV;",
+                        "#endif",
                         "float jmod(float x, float y) { float m = x - y * floor(x / y); return m >= y ? m - y : (m < 0.0 ? m + y : m); }",
                         "float getElapsedTicks(float tStart, float gameTimeTicks) {",
                         "    return (jmod(gameTimeTicks - tStart + 10.0, 240.0) - 10.0)$slowmoStr;",
@@ -64,8 +72,13 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                     base
                 }
                 ShaderType.TEXT_FRAGMENT -> listOf(
+                    "#if defined(VULKAN) || defined(HUD_USE_LOCATION)",
+                    "layout(location = 5) in vec2 hudFill;",
+                    "layout(location = 6) in vec2 hudQuadUV;",
+                    "#else",
                     "in vec2 hudFill;",
                     "in vec2 hudQuadUV;",
+                    "#endif",
                     "bool shouldDiscard(vec2 uv, float fill, int splitType) {",
                     "    if (fill <= 0.0) return true;",
                     "    if (fill >= 1.0) return false;",

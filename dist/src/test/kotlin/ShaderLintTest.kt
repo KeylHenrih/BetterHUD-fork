@@ -39,7 +39,7 @@ class ShaderLintTest {
         return map
     }
 
-    private fun lintShader(rawCode: String, overlay: PackOverlay, stage: String = "vert") {
+    private fun lintShader(rawCode: String, overlay: PackOverlay, stage: String = "vert", defines: List<String> = emptyList()) {
         val glslangAvailable = isGlslangAvailable()
         val isCi = System.getenv("CI")?.toBoolean() == true || System.getenv("REQUIRE_GLSLANG")?.toBoolean() == true
         if (isCi) {
@@ -86,13 +86,20 @@ class ShaderLintTest {
         val tempFile = File.createTempFile("shader_lint_${overlay.overlayName}_", suffix)
         try {
             tempFile.writeText(processed)
-            val process = ProcessBuilder("glslangValidator", "-S", stage, tempFile.absolutePath)
+            val baseCommand = if (overlay == PackOverlay.V26_3) {
+                mutableListOf("glslangValidator", "-V", "--auto-map-bindings", "-S", stage)
+            } else {
+                mutableListOf("glslangValidator", "-S", stage)
+            }
+            baseCommand.addAll(defines)
+            baseCommand.add(tempFile.absolutePath)
+            val process = ProcessBuilder(baseCommand)
                 .redirectErrorStream(true)
                 .start()
             val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor()
 
-            assertEquals(0, exitCode, "glslangValidator compilation failed for overlay ${overlay.overlayName} ($stage):\n$output\n\nSource:\n$processed")
+            assertEquals(0, exitCode, "glslangValidator compilation failed for overlay ${overlay.overlayName} ($stage, defs=$defines):\n$output\n\nSource:\n$processed")
         } finally {
             tempFile.delete()
         }
@@ -204,6 +211,57 @@ class ShaderLintTest {
             content = content.replace("#GenerateOtherMainMethod", mainMethods)
 
             lintShader(content, overlay, stage = "frag")
+        }
+    }
+
+    @Test
+    fun testShaderLintV26_3PipelinePermutations() {
+        val glslangAvailable = isGlslangAvailable()
+        val isCi = System.getenv("CI")?.toBoolean() == true || System.getenv("REQUIRE_GLSLANG")?.toBoolean() == true
+        if (isCi) {
+            assertTrue(glslangAvailable, "glslangValidator is required in CI")
+        } else {
+            assumeTrue(glslangAvailable, "glslangValidator is required for shader linting.")
+        }
+
+        val gui = GuiLocation(0.0, 0.0)
+        val scale = RenderScale(PixelLocation.zero, RenderScale.Scale(1.0, 1.0, false))
+        val staticShader = HudShader(gui, scale, 1, 0, 1.0, 0, null, null)
+        val layout = ShaderManagerImpl.generateShaderLayout(mapOf(staticShader to emptyList()))
+        val vshCode = buildTestShader(PackOverlay.V26_3, layout)
+
+        val templateFrag = File("../common-resources/shaders/betterhud_26_3/text.fsh").let {
+            if (it.exists()) it else File("common-resources/shaders/betterhud_26_3/text.fsh")
+        }
+        val definedMethods = ShaderManagerImpl.tagBuilders["GenerateOtherDefinedMethod"]!!.invoke(kr.toxicity.hud.api.manager.ShaderManager.ShaderType.TEXT_FRAGMENT).joinToString("\n")
+        val mainMethods = ShaderManagerImpl.tagBuilders["GenerateOtherMainMethod"]!!.invoke(kr.toxicity.hud.api.manager.ShaderManager.ShaderType.TEXT_FRAGMENT).joinToString("\n")
+
+        var fshCode = templateFrag.readText()
+        fshCode = fshCode.replace("#CreateConstant", "")
+        fshCode = fshCode.replace("#GenerateOtherDefinedMethod", definedMethods)
+        fshCode = fshCode.replace("#GenerateOtherMainMethod", mainMethods)
+
+        val vertCombos = listOf(
+            emptyList(),
+            listOf("-DIS_GUI"),
+            listOf("-DIS_SEE_THROUGH")
+        )
+        val fragCombos = listOf(
+            emptyList(),
+            listOf("-DIS_GUI"),
+            listOf("-DIS_GRAYSCALE"),
+            listOf("-DIS_SEE_THROUGH"),
+            listOf("-DIS_GUI", "-DIS_GRAYSCALE"),
+            listOf("-DOIT", "-DOIT_ACCUMULATE", "-DOIT_WAVELET_RANK=2", "-DOIT_COEFF_COUNT=8", "-DOIT_COEFF_ATTACHMENT_COUNT=2"),
+            listOf("-DOIT", "-DOIT_ACCUMULATE", "-DOIT_WAVELET_RANK=2", "-DOIT_COEFF_COUNT=8", "-DOIT_COEFF_ATTACHMENT_COUNT=2", "-DIS_GRAYSCALE"),
+            listOf("-DOIT", "-DOIT_ALPHA_ONLY", "-DOIT_WAVELET_RANK=2", "-DOIT_COEFF_COUNT=8", "-DOIT_COEFF_ATTACHMENT_COUNT=2")
+        )
+
+        for (defs in vertCombos) {
+            lintShader(vshCode, PackOverlay.V26_3, "vert", defs)
+        }
+        for (defs in fragCombos) {
+            lintShader(fshCode, PackOverlay.V26_3, "frag", defs)
         }
     }
 }
