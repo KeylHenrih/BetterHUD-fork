@@ -2715,4 +2715,178 @@ class ClientAnimationTest {
             assertEquals(60, (map["x"] as Number).toInt(), "Client column X must be 60")
         }
     }
+
+    @Test
+    fun testPopupIteratorGroupOrderingAndTreeSet() {
+        val parentMock = java.lang.reflect.Proxy.newProxyInstance(
+            kr.toxicity.hud.api.popup.Popup::class.java.classLoader,
+            arrayOf(kr.toxicity.hud.api.popup.Popup::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getMaxStack" -> 3
+                "getGroupName" -> "default"
+                else -> null
+            }
+        } as kr.toxicity.hud.api.popup.Popup
+
+        class TestIter(
+            val id: java.util.UUID = java.util.UUID.randomUUID(),
+            val nameStr: String,
+            var i: Int = -1,
+            val maxI: Int = 2,
+            var cond: Boolean = true
+        ) : kr.toxicity.hud.api.popup.PopupIterator {
+            var removed = false
+            override fun getIndex(): Int = i
+            override fun setIndex(index: Int) { i = index }
+            override fun getMaxIndex(): Int = maxI
+            override fun getUUID(): java.util.UUID = id
+            override fun getSortType(): kr.toxicity.hud.api.popup.PopupSortType = kr.toxicity.hud.api.popup.PopupSortType.LAST
+            override fun isUnique(): Boolean = false
+            override fun push(): Boolean = true
+            override fun canSave(): Boolean = false
+            override fun alwaysCheckCondition(): Boolean = false
+            override fun available(): Boolean = cond
+            override fun getKey(): Any = id
+            override fun next(): List<kr.toxicity.hud.api.component.WidthComponent> = listOf(kr.toxicity.hud.api.component.WidthComponent(net.kyori.adventure.text.Component.text(nameStr).toBuilder(), 10))
+            override fun markedAsRemoval(): Boolean = removed
+            override fun remove() { removed = true }
+            override fun getPriority(): Int = -1
+            override fun setPriority(priority: Int) {}
+            override fun name(): String = nameStr
+            override fun parent(): kr.toxicity.hud.api.popup.Popup = parentMock
+            override fun getSpawnTime(): Long = 0L
+            override fun resetSpawnTime(spawnTime: Long) {}
+
+            override fun equals(other: Any?): Boolean {
+                if (this === other) return true
+                if (other !is TestIter) return false
+                return id == other.id
+            }
+            override fun hashCode(): Int = id.hashCode()
+            override fun compareTo(other: kr.toxicity.hud.api.popup.PopupIterator): Int = i.compareTo(other.index)
+        }
+
+        val group = kr.toxicity.hud.popup.PopupIteratorGroupImpl()
+        val p1 = TestIter(nameStr = "P1")
+        val p2 = TestIter(nameStr = "P2")
+        val p3 = TestIter(nameStr = "P3")
+        group.addIterator(p1)
+        group.addIterator(p2)
+        group.addIterator(p3)
+
+        assertEquals(listOf(0, 1, 2), listOf(p1.index, p2.index, p3.index))
+        val next1 = group.next().map { ((it.component.build() as net.kyori.adventure.text.TextComponent).content()) }
+        assertEquals(listOf("P1", "P2", "P3"), next1)
+
+        // Now remove p1 (index 0 expires)
+        p1.cond = false
+        val next2 = group.next().map { ((it.component.build() as net.kyori.adventure.text.TextComponent).content()) }
+        println("After P1 expired, next2: $next2, p2.index=${p2.index}, p3.index=${p3.index}")
+        assertEquals(listOf(0, 1), listOf(p2.index, p3.index))
+        assertEquals(listOf("P2", "P3"), next2)
+
+        // Now add P4
+        val p4 = TestIter(nameStr = "P4")
+        group.addIterator(p4)
+        assertEquals(2, p4.index)
+        val next3 = group.next().map { ((it.component.build() as net.kyori.adventure.text.TextComponent).content()) }
+        println("After P4 added, next3: $next3")
+        assertEquals(listOf("P2", "P3", "P4"), next3)
+    }
+
+    @Test
+    fun testMultiPopupListenerBarOscillationBug() {
+        val playerUuid = java.util.UUID.randomUUID()
+        val player = kr.toxicity.hud.api.player.HudPlayer::class.java.let {
+            java.lang.reflect.Proxy.newProxyInstance(it.classLoader, arrayOf(it)) { _, method, args ->
+                when (method.name) {
+                    "uuid" -> playerUuid
+                    "worldTime" -> currentTestTick
+                    "tick" -> currentTestTick
+                    else -> null
+                }
+            } as kr.toxicity.hud.api.player.HudPlayer
+        }
+
+        val listenerAnim = kr.toxicity.hud.animation.ListenerAnimation(
+            kr.toxicity.hud.image.enums.SplitType.LEFT,
+            10,
+            kr.toxicity.hud.animation.EasingType.LINEAR
+        )
+        val unsafeField = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
+        unsafeField.isAccessible = true
+        val unsafe = unsafeField.get(null) as sun.misc.Unsafe
+        val element = unsafe.allocateInstance(kr.toxicity.hud.element.ImageElement::class.java) as kr.toxicity.hud.element.ImageElement
+        val idField = kr.toxicity.hud.element.ImageElement::class.java.getDeclaredField("id")
+        idField.isAccessible = true
+        idField.set(element, "damage-indicator_health_red")
+        val animField = kr.toxicity.hud.element.ImageElement::class.java.getDeclaredField("listenerAnimation")
+        animField.isAccessible = true
+        animField.set(element, listenerAnim)
+
+        val pixelComp = kr.toxicity.hud.api.component.PixelComponent(
+            kr.toxicity.hud.api.component.WidthComponent(net.kyori.adventure.text.Component.text("A").toBuilder(), 10),
+            0
+        )
+        val imageComp = kr.toxicity.hud.image.ImageComponent(
+            element,
+            null,
+            listOf(pixelComp),
+            emptyMap()
+        )
+
+        var z1Health = 0.8
+        var z2Health = 0.3
+        val l1 = kr.toxicity.hud.api.listener.HudListener { z1Health }
+        val l2 = kr.toxicity.hud.api.listener.HudListener { z2Health }
+
+        val iter1Uuid = java.util.UUID.randomUUID()
+        val iter2Uuid = java.util.UUID.randomUUID()
+
+        val z1Colors = mutableListOf<net.kyori.adventure.text.format.TextColor>()
+        val z2Colors = mutableListOf<net.kyori.adventure.text.format.TextColor>()
+
+        for (tick in 100L..105L) {
+            currentTestTick = tick
+            val c1 = kr.toxicity.hud.image.enums.ImageType.LISTENER.getComponent(l1, 0L, imageComp, player, iter1Uuid)
+            val color1 = (c1.component.component.build() as net.kyori.adventure.text.TextComponent).color()!!
+            z1Colors.add(color1)
+
+            val c2 = kr.toxicity.hud.image.enums.ImageType.LISTENER.getComponent(l2, 0L, imageComp, player, iter2Uuid)
+            val color2 = (c2.component.component.build() as net.kyori.adventure.text.TextComponent).color()!!
+            z2Colors.add(color2)
+        }
+
+        // With distinct popup trackerKeys:
+        // Zombie 1 health is static at 0.8 -> tStart must NOT reset every tick, colors must be stable
+        val z1TStarts = z1Colors.map { it.red() }
+        val z1Froms = z1Colors.map { it.green() }
+        val z1Tos = z1Colors.map { it.blue() }
+        assertEquals(listOf(100, 100, 100, 100, 100, 100), z1TStarts, "Zombie 1 tStart must remain stable at initial tick (no reset)")
+        assertEquals(listOf(204, 204, 204, 204, 204, 204), z1Froms, "Zombie 1 fromVal must not oscillate")
+        assertEquals(listOf(204, 204, 204, 204, 204, 204), z1Tos, "Zombie 1 toVal must remain constant")
+
+        val z2TStarts = z2Colors.map { it.red() }
+        val z2Froms = z2Colors.map { it.green() }
+        val z2Tos = z2Colors.map { it.blue() }
+        assertEquals(listOf(100, 100, 100, 100, 100, 100), z2TStarts, "Zombie 2 tStart must remain stable at initial tick (no reset)")
+        assertEquals(listOf(77, 77, 77, 77, 77, 77), z2Froms, "Zombie 2 fromVal must not oscillate")
+        assertEquals(listOf(77, 77, 77, 77, 77, 77), z2Tos, "Zombie 2 toVal must remain constant")
+
+        // Test cleanup of iter1
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(playerUuid, iter1Uuid)
+        val trackers = kr.toxicity.hud.image.enums.ImageType.getTrackers(playerUuid)
+        assertNotNull(trackers)
+        assertNull(trackers!!["damage-indicator_health_red_$iter1Uuid"], "Iter 1 tracker must be removed")
+        assertNotNull(trackers["damage-indicator_health_red_$iter2Uuid"], "Iter 2 tracker must still exist")
+
+        // Test cleanup of player
+        kr.toxicity.hud.image.enums.ImageType.removeTrackers(playerUuid)
+        assertNull(kr.toxicity.hud.image.enums.ImageType.getTrackers(playerUuid), "All trackers for player must be removed")
+    }
+
+    companion object {
+        var currentTestTick: Long = 100L
+    }
 }

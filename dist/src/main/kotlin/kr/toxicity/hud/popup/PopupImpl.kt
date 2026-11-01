@@ -279,6 +279,9 @@ class PopupImpl(
         val value = index?.invoke(reason)?.invoke(player) ?: -1
         val remove0 = {
             player.popupKeyMap.remove(key)
+            iteratorRef?.uuid?.let { iterUuid ->
+                kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uuid(), iterUuid)
+            }
             Unit
         }
         val impl = player as? kr.toxicity.hud.player.HudPlayerImpl

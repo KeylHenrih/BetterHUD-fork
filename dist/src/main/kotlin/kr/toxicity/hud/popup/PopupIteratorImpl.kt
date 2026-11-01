@@ -112,7 +112,9 @@ class PopupIteratorImpl(
     }
 
     override fun compareTo(other: PopupIterator): Int {
-        return i.compareTo(other.index)
+        val comp = i.compareTo(other.index)
+        if (comp != 0) return comp
+        return if (other is PopupIteratorImpl) id.compareTo(other.id) else (if (this === other) 0 else -1)
     }
 
     private fun refreshMapper() {

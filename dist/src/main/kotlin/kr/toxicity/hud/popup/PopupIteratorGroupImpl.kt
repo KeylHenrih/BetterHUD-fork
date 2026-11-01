@@ -48,12 +48,23 @@ class PopupIteratorGroupImpl : PopupIteratorGroup {
             }
             if (iterator.index >= iterator.parent().maxStack && iterator.push()) {
                 val minus = iterator.index - iterator.parent().maxStack + 1
-                sourceSet.removeIf {
+                val remaining = ArrayList<PopupIterator>(sourceSet.size)
+                val loop = sourceSet.iterator()
+                while (loop.hasNext()) {
+                    val it = loop.next()
                     if (it.priority < 0) {
                         it.index -= minus
-                        it.index < 0
-                    } else false
+                        if (it.index < 0) {
+                            it.remove()
+                        } else {
+                            remaining += it
+                        }
+                    } else {
+                        remaining += it
+                    }
                 }
+                sourceSet.clear()
+                sourceSet.addAll(remaining)
                 iterator.index -= minus
             }
             sourceSet += iterator
@@ -82,6 +93,7 @@ class PopupIteratorGroupImpl : PopupIteratorGroup {
             val copy = sourceSet.toList()
             val result = ArrayList<WidthComponent>()
             var i = 0
+            var anyRemoved = false
             sourceSet.removeIf { next ->
                 i++
                 (if (next.index > next.maxIndex) {
@@ -95,8 +107,14 @@ class PopupIteratorGroupImpl : PopupIteratorGroup {
                         copy.subList(i, copy.size).forEach {
                             it.index--
                         }
+                        anyRemoved = true
                     }
                 }
+            }
+            if (anyRemoved && sourceSet.isNotEmpty()) {
+                val reinsert = ArrayList(sourceSet)
+                sourceSet.clear()
+                sourceSet.addAll(reinsert)
             }
             return result
         }

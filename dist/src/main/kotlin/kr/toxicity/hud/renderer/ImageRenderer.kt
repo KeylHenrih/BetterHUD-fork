@@ -2,6 +2,7 @@ package kr.toxicity.hud.renderer
 
 import kr.toxicity.hud.api.component.PixelComponent
 import kr.toxicity.hud.api.player.HudPlayer
+import kr.toxicity.hud.api.update.PopupUpdateEvent
 import kr.toxicity.hud.api.update.UpdateEvent
 import kr.toxicity.hud.image.ImageComponent
 import kr.toxicity.hud.layout.ImageLayout
@@ -30,6 +31,7 @@ class ImageRenderer(
 
         val mapper = component mapper event
         val colorApply = colorOverrides(event)
+        val trackerKey = (event as? PopupUpdateEvent)?.iterator?.uuid
 
         return tickProvide(tick) build@ { player, frame ->
             val selected = mapper(player)
@@ -58,9 +60,12 @@ class ImageRenderer(
                         empty = empty.append(space, selected.images[frame])
                     }
                     empty.applyColor(colorApply(target))
-                } else component.type.getComponent(listen, frame, selected, target).applyColor(colorApply(target))
+                } else component.type.getComponent(listen, frame, selected, target, trackerKey).applyColor(colorApply(target))
             } else {
-                if (clearListener) listen.clear(player)
+                if (clearListener) {
+                    listen.clear(player)
+                    trackerKey?.let { kr.toxicity.hud.image.enums.ImageType.removeTrackers(player.uuid(), it) }
+                }
                 EMPTY_PIXEL_COMPONENT
             }
         }

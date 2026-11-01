@@ -25,7 +25,7 @@ import kotlin.text.replace
 
 enum class ImageType {
     SINGLE {
-        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent {
+        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer, trackerKey: Any?): PixelComponent {
             val get = listener.getValue(player).run {
                 if (isNaN()) 0 else (this * component.images.lastIndex).roundToInt()
             }
@@ -66,12 +66,13 @@ enum class ImageType {
 
     },
     LISTENER {
-        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent {
+        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer, trackerKey: Any?): PixelComponent {
             val listenerAnim = component.original.listenerAnimation
             if (listenerAnim != null && component.images.isNotEmpty()) {
+                val trackerKeyString = if (trackerKey != null) "${component.original.id}_$trackerKey" else component.original.id
                 val tracker = trackerMap.computeIfAbsent(player.uuid()) {
                     ConcurrentHashMap()
-                }.computeIfAbsent(component.original.id) {
+                }.computeIfAbsent(trackerKeyString) {
                     ListenerTracker(listenerAnim.duration, listenerAnim.easing)
                 }
                 val rawVal = listener.getValue(player)
@@ -164,7 +165,7 @@ enum class ImageType {
         }
     },
     SEQUENCE {
-        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent {
+        override fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer, trackerKey: Any?): PixelComponent {
             val collapsed = component.collapsedImage
             if (collapsed != null) return collapsed
             val get = listener.getValue(player).run {
@@ -224,12 +225,19 @@ enum class ImageType {
         fun removeTrackers(uuid: UUID) {
             trackerMap.remove(uuid)
         }
+        fun removeTrackers(uuid: UUID, trackerKey: Any?) {
+            if (trackerKey == null) return
+            val suffix = "_$trackerKey"
+            trackerMap[uuid]?.let { map ->
+                map.keys.removeIf { it.endsWith(suffix) }
+            }
+        }
 
         private fun YamlObject.toFlip() = get("flip")?.asArray()?.map {
             FlipType.valueOf(it.asString().uppercase())
         }?.toSet() ?: emptySet()
     }
 
-    abstract fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer): PixelComponent
+    abstract fun getComponent(listener: HudListener, frame: Long, component: ImageComponent, player: HudPlayer, trackerKey: Any? = null): PixelComponent
     abstract fun createElement(assets: File, sender: BetterCommandSource, file: File, s: String, yamlObject: YamlObject): ImageElement
 }
