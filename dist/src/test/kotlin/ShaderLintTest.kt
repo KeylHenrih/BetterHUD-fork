@@ -84,10 +84,11 @@ class ShaderLintTest {
 
         val suffix = if (stage == "vert") ".vert" else ".frag"
         val tempFile = File.createTempFile("shader_lint_${overlay.overlayName}_", suffix)
+        val tempSpv = File.createTempFile("shader_lint_${overlay.overlayName}_", ".spv")
         try {
             tempFile.writeText(processed)
             val baseCommand = if (overlay == PackOverlay.V26_3) {
-                mutableListOf("glslangValidator", "-V", "--auto-map-bindings", "-S", stage)
+                mutableListOf("glslangValidator", "-V", "-o", tempSpv.absolutePath, "--auto-map-bindings", "-S", stage)
             } else {
                 mutableListOf("glslangValidator", "-S", stage)
             }
@@ -102,6 +103,7 @@ class ShaderLintTest {
             assertEquals(0, exitCode, "glslangValidator compilation failed for overlay ${overlay.overlayName} ($stage, defs=$defines):\n$output\n\nSource:\n$processed")
         } finally {
             tempFile.delete()
+            tempSpv.delete()
         }
     }
 
