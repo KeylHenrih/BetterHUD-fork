@@ -280,13 +280,13 @@ fun getExactSingleCacheSize(): Int = exactSingleCache.size
 fun WidthComponent.applyClientExact(tStartByte: Int): WidthComponent {
     val built = component.build()
     val key = ExactSingleCacheKey(built, tStartByte, width)
-    exactSingleCache[key]?.let { return it }
+    exactSingleCache[key]?.let { return it.copy() }
 
     val transformed = built.applyClientExact(tStartByte)
     val builder = if (transformed is TextComponent) transformed.toBuilder() else Component.text().append(transformed)
     val result = WidthComponent(builder, width)
 
-    exactSingleCache[key] = result
+    exactSingleCache[key] = result.copy()
     return result
 }
 
@@ -305,7 +305,7 @@ fun WidthComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): WidthCom
         return applyClientExact(tStartByte)
     }
     val key = ExactDualCacheKey(built, tStartByte, moduloM, width)
-    exactDualCache[key]?.let { return it }
+    exactDualCache[key]?.let { return it.copy() }
 
     val copyShadow = built.applyClientDualRole(DualCopyRole.SHADOW, tStartByte, moduloM)
     val copyText = built.applyClientDualRole(DualCopyRole.TEXT, tStartByte, moduloM)
@@ -325,7 +325,7 @@ fun WidthComponent.applyClientExactDual(tStartByte: Int, moduloM: Int): WidthCom
         )
         shadowWidthComp + backstep + textWidthComp
     }
-    exactDualCache[key] = result
+    exactDualCache[key] = result.copy()
     return result
 }
 
