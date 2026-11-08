@@ -41,8 +41,9 @@
    - Independent dispatcher IDs for client and server layouts (capacity 1024, under 6% utilized).
    - Generates independent client font definitions (`_client.json`), allowing seamless per-player switching.
 5. **Per-Player Runtime Switching:**
-   - `/hud animation-mode <player|self> <client|server|auto>` allows players or admins to toggle animation modes instantly without restarting the server (implemented, not verified in live client with multiple concurrent players).
-   - Bedrock Edition players (via GeyserMC / Floodgate) automatically receive server-side rendering with zero setup.
+   - `/hud animation-mode <player|self> <client|server|auto>` allows players or admins to toggle animation modes for popups instantly without restarting the server.
+   - *Architectural limitation:* per-player animation mode and Bedrock detection apply **to popups only**; persistent HUD elements (`ImageType.LISTENER` health/mana bars and `LOOP` animations) follow global `animation-mode` in `shader.yml`.
+   - Bedrock Edition players (via GeyserMC / Floodgate) automatically receive server-side rendering for popups.
 6. **Diagnostic & Debug Suite:**
    - `/hud debug-anim`: Live element inspect tree showing real-time client/server registration and modulus divisors.
    - `/hud debug-popup <popup> [hold|stop]`: Freezes popups on screen for visual inspection and alignment.
@@ -154,7 +155,7 @@ animation-debug-probe: false
 
 - `/hud popup show <player|all> <popup>`: Displays the specified popup to a player or all online players (e.g. `/hud popup show all damage_indicator_1` or `/hud popup show Steve item_pickup`).
 - `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup on screen for visual inspection and alignment (`hold` to freeze indefinitely, `stop` to remove).
-- `/hud animation-mode <self|player> [client|server|auto]`: Queries or changes animation mode for yourself or a target player without server reload (implemented, not verified in live client with multiple concurrent players).
+- `/hud animation-mode <self|player> [client|server|auto]`: Queries or changes animation mode for yourself or a target player without server reload (applies to popups only; HUD elements follow global `animation-mode` in `shader.yml`).
   - `auto`: Uses client animations on Java Edition, falls back to server mode on Bedrock Edition.
   - `server`: Forces classic server-side rendering (20 TPS).
   - `client`: Forces GPU client-side rendering (144+ FPS).

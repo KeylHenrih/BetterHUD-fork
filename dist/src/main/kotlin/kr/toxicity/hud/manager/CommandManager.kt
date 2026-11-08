@@ -370,6 +370,7 @@ object CommandManager : BetterHudManager {
                     val impl = player as? HudPlayerImpl
                     val current = impl?.getPlayerAnimationMode() ?: kr.toxicity.hud.animation.PlayerAnimationMode.AUTO
                     me.info("Player '${player.name()}' animation mode is $current (effective: ${if (impl?.isClientAnimationEnabled() == true) "CLIENT" else "SERVER"}).")
+                    me.warn("Note: per-player animation mode applies to popups only; HUD elements follow global shader.yml animation-mode.")
                     return
                 }
                 (player as? HudPlayerImpl)?.let { p ->
@@ -379,6 +380,7 @@ object CommandManager : BetterHudManager {
                     p.reload()
                 }
                 me.info("Set animation mode for '${player.name()}' to $newMode.")
+                me.warn("Note: per-player animation mode applies to popups only; HUD elements follow global shader.yml animation-mode.")
             }
         }).children("hud") {
             it.permission("betterhud.hud")

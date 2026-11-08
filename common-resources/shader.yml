@@ -5,6 +5,9 @@ disable-level-text: false
 # - client: offloads animations to client vertex shaders where supported.
 # - server: classic server-tick rendering (100% vanilla compatibility).
 # - hybrid: listener bars in client mode, remaining elements in server mode.
+# Note: per-player animation mode (/hud animation-mode) and Bedrock detection apply to popups only.
+# HUD elements (ImageType.LISTENER and LOOP animations) follow this global shader.yml animation-mode.
+# If global animation-mode is client, Bedrock and fallback players receive shader time-tags for HUD elements.
 animation-mode: client
 
 # Text rendering mode in client popups:
