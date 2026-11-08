@@ -28,6 +28,7 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
     private val tagPattern = Pattern.compile("#(?<name>[a-zA-Z]+)")
     internal val tagBuilders: MutableMap<String, (ShaderType) -> List<String>> = mutableMapOf(
         "CreateConstant" to { _ ->
+            constants["L"] = "${ConfigManagerImpl.animationLookaheadWindow}.0"
             constants.map {
                 "#define ${it.key} ${it.value}"
             }
@@ -53,13 +54,13 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
                         "#endif",
                         "float jmod(float x, float y) { float m = x - y * floor(x / y); return m >= y ? m - y : (m < 0.0 ? m + y : m); }",
                         "float getElapsedTicks(float tStart, float gameTimeTicks) {",
-                        "    return (jmod(gameTimeTicks - tStart + 10.0, 240.0) - 10.0)$slowmoStr;",
+                        "    return (jmod(gameTimeTicks - tStart + L, 240.0) - L)$slowmoStr;",
                         "}",
                         "float getElapsedTicks(float tStart, float gameTimeTicks, float M) {",
-                        "    return (jmod(gameTimeTicks - tStart + 10.0, M) - 10.0)$slowmoStr;",
-                        "}",
-                        "float getElapsedTicks(float tStart, float gameTimeTicks, float M, float L) {",
                         "    return (jmod(gameTimeTicks - tStart + L, M) - L)$slowmoStr;",
+                        "}",
+                        "float getElapsedTicks(float tStart, float gameTimeTicks, float M, float lookaheadWindow) {",
+                        "    return (jmod(gameTimeTicks - tStart + lookaheadWindow, M) - lookaheadWindow)$slowmoStr;",
                         "}",
                         "float easeLinear(float x) { return x; }",
                         "float easeOutCubic(float x) { float f = x - 1.0; return f * f * f + 1.0; }",
@@ -151,7 +152,13 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         } ?: supplier
     }
 
-    private val constants = mutableMapOf<String, String>()
+    private val constants = mutableMapOf<String, String>(
+        "HEIGHT_BIT" to HUD_DEFAULT_BIT.toString(),
+        "MAX_BIT" to HUD_MAX_BIT.toString(),
+        "ADD_OFFSET" to HUD_ADD_HEIGHT.toString(),
+        "DEFAULT_OFFSET" to "10",
+        "L" to "${ConfigManagerImpl.animationLookaheadWindow}.0"
+    )
     private var replaceSet = mutableSetOf<String>()
 
     private val shaderConstants = mutableMapOf(
@@ -205,6 +212,7 @@ object ShaderManagerImpl : BetterHudManager, ShaderManager {
         replaceSet = mutableSetOf()
         constants += shaderConstants
         constants["DEFAULT_OFFSET"] = "${10 + 17 * (ConfigManagerImpl.bossbarResourcePackLine - 1)}"
+        constants["L"] = "${ConfigManagerImpl.animationLookaheadWindow}.0"
         runCatching {
             val yaml = PluginConfiguration.SHADER.create()
             barColor = yaml["bar-color"]?.asString()?.let {

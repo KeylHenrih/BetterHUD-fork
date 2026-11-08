@@ -106,6 +106,8 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
         private set
     var animationLookaheadMax = 5
         private set
+    val animationLookaheadWindow: Int
+        get() = maxOf(10, animationLookaheadMax)
     var animationDebugSlowmo = 1.0
         private set
     var animationDebugProbe = false

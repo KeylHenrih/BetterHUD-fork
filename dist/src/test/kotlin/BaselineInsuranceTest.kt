@@ -34,6 +34,7 @@ class BaselineInsuranceTest {
             #define MAX_BIT 10
             #define ADD_OFFSET 4095
             #define DEFAULT_OFFSET 10
+            #define L ${kr.toxicity.hud.manager.ConfigManagerImpl.animationLookaheadWindow}.0
         """.trimIndent()
 
         val definedMethods = ShaderManagerImpl.tagBuilders["GenerateOtherDefinedMethod"]!!.invoke(ShaderType.TEXT_VERTEX).joinToString("\n")

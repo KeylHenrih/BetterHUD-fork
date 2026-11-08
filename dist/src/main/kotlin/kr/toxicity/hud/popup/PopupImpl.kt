@@ -92,9 +92,9 @@ class PopupImpl(
             val pixel = yamlObject["pixel"]?.asObject()?.let { PixelLocation(it) } ?: PixelLocation.zero
 
             val maxDuration = maxOf(clientAnim?.duration ?: 0, if (this@PopupImpl.duration > 0) this@PopupImpl.duration else 0)
-            val lookahead = ConfigManagerImpl.animationLookaheadMax
+            val lookaheadWindow = ConfigManagerImpl.animationLookaheadWindow
             val hasUnboundedDuration = clientAnim != null && clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE && this@PopupImpl.duration <= 0
-            val exceedsWindow = clientAnim != null && (maxDuration + lookahead > (240 - lookahead))
+            val exceedsWindow = clientAnim != null && (maxDuration + lookaheadWindow > (240 - lookaheadWindow))
             val hasText = layoutObj.text.isNotEmpty()
             val hasUnsupportedDecoration = layoutObj.text.any {
                 val p = it.pattern
@@ -123,7 +123,7 @@ class PopupImpl(
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
             } else if (enableClient && clientAnim != null) {
                 if (clientAnim.type == kr.toxicity.hud.animation.AnimationType.PLAY_ONCE) {
-                    val requiredTicks = maxDuration + maxOf(lookahead, 10) + 4
+                    val requiredTicks = maxDuration + lookaheadWindow + 4
                     val divisorM = kr.toxicity.hud.text.getDivisorM(requiredTicks)
                     if (ConfigManagerImpl.textShadowMode == ConfigManagerImpl.TextShadowMode.DUAL && hasText) {
                         if (divisorM != null) {

@@ -4,6 +4,7 @@
 #define MAX_BIT 10
 #define ADD_OFFSET 4095
 #define DEFAULT_OFFSET 10
+#define L 10.0
 
 #moj_import <fog.glsl>
 #moj_import <sample_lightmap.glsl>
@@ -54,13 +55,13 @@ out vec2 hudQuadUV;
 #endif
 float jmod(float x, float y) { float m = x - y * floor(x / y); return m >= y ? m - y : (m < 0.0 ? m + y : m); }
 float getElapsedTicks(float tStart, float gameTimeTicks) {
-    return (jmod(gameTimeTicks - tStart + 10.0, 240.0) - 10.0);
+    return (jmod(gameTimeTicks - tStart + L, 240.0) - L);
 }
 float getElapsedTicks(float tStart, float gameTimeTicks, float M) {
-    return (jmod(gameTimeTicks - tStart + 10.0, M) - 10.0);
-}
-float getElapsedTicks(float tStart, float gameTimeTicks, float M, float L) {
     return (jmod(gameTimeTicks - tStart + L, M) - L);
+}
+float getElapsedTicks(float tStart, float gameTimeTicks, float M, float lookaheadWindow) {
+    return (jmod(gameTimeTicks - tStart + lookaheadWindow, M) - lookaheadWindow);
 }
 float easeLinear(float x) { return x; }
 float easeOutCubic(float x) { float f = x - 1.0; return f * f * f + 1.0; }
