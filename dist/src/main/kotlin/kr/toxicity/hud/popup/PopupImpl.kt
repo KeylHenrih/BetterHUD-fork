@@ -102,8 +102,9 @@ class PopupImpl(
                 p.contains("<st>", true) || p.contains("<strikethrough>", true) ||
                 p.contains("<obf>", true) || p.contains("<obfuscated>", true)
             }
+            val hasCustomTick = clientAnim != null && this@PopupImpl.tick != 1L
             var layoutM = 240
-            var enableClient = clientAnim != null && !hasHead && !exceedsWindow && !hasUnboundedDuration && !hasUnsupportedDecoration
+            var enableClient = clientAnim != null && !hasHead && !exceedsWindow && !hasUnboundedDuration && !hasUnsupportedDecoration && !hasCustomTick
 
             if (hasUnboundedDuration) {
                 val reason = "duration <= 0 (unbounded lifetime, fallback to server)"
@@ -116,6 +117,10 @@ class PopupImpl(
             } else if (hasUnsupportedDecoration && clientAnim != null) {
                 val reason = "contains underline/strikethrough/obfuscated (fallback to server)"
                 warn("Popup '${this@PopupImpl.name}' layout '$layout' contains unsupported decorations (<u>/<st>/<obf>), forcing SERVER mode.")
+                kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
+            } else if (hasCustomTick) {
+                val reason = "tick=${this@PopupImpl.tick} != 1 (client animations not supported, fallback to server)"
+                warn("Popup '${this@PopupImpl.name}' has tick=${this@PopupImpl.tick} != 1, client animations not supported, forcing SERVER mode.")
                 kr.toxicity.hud.animation.AnimationElementRegistry.register(fullPath, kr.toxicity.hud.animation.AnimationMode.SERVER, anim.type, reason)
             } else if (exceedsWindow) {
                 val reason = "duration ($maxDuration) exceeds safe time window (fallback to server)"
