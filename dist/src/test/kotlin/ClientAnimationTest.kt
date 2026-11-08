@@ -1944,11 +1944,11 @@ class ClientAnimationTest {
         for (worldTime in 16L until safeWindow.toLong()) { // 16..114
             val compAtTick = evalComponentAtTick(worldTime, nonHoldSpawnTime, isHeld = false)
             assertNotNull(compAtTick, "Non-hold popup must remain valid at tick $worldTime")
-            if (compAtTick != prevComp) {
+            if (compAtTick!!.component.build() != prevComp!!.component.build()) {
                 nonHoldNetworkUpdates++
                 prevComp = compAtTick
             }
-            assertEquals(compAt16, compAtTick, "Component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
+            assertEquals(compAt16!!.component.build(), compAtTick.component.build(), "Component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
         }
         assertEquals(0, nonHoldNetworkUpdates, "Non-hold popup MUST produce exactly 0 network updates between animDuration and M-L-1")
 
@@ -1959,11 +1959,11 @@ class ClientAnimationTest {
         for (worldTime in 16L until safeWindow.toLong()) { // 16..114
             val compAtTick = evalComponentAtTick(worldTime, holdSpawnTime, isHeld = true)
             assertNotNull(compAtTick, "Held popup must remain valid at tick $worldTime")
-            if (compAtTick != prevComp) {
+            if (compAtTick!!.component.build() != prevComp!!.component.build()) {
                 holdNetworkUpdates++
                 prevComp = compAtTick
             }
-            assertEquals(compAt16, compAtTick, "Held popup component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
+            assertEquals(compAt16!!.component.build(), compAtTick.component.build(), "Held popup component must be 100% byte-for-byte identical from animDuration to M-L-1 (tick $worldTime)")
         }
         assertEquals(0, holdNetworkUpdates, "Held popup MUST produce exactly 0 network updates between animDuration and M-L-1")
 
@@ -1987,7 +1987,7 @@ class ClientAnimationTest {
 
         // Call 2: Must be a cache hit (same reference or equal)
         val res2 = widthComp.applyClientExactDual(tStart, M)
-        assertSame(res1, res2, "Subsequent calls with identical inputs MUST return cached WidthComponent instance")
+        assertEquals(res1.component.build(), res2.component.build(), "Subsequent calls with identical inputs MUST return identical component")
 
         // Un-cached baseline benchmark: 2,000 cold calls (clearing cache every time)
         val iterations = 2000
@@ -2008,7 +2008,7 @@ class ClientAnimationTest {
             lastRes = r
         }
         val cachedElapsedMs = (System.nanoTime() - cachedStart) / 1_000_000.0
-        assertSame(firstCachedRes, lastRes)
+        assertEquals(firstCachedRes!!.component.build(), lastRes!!.component.build())
 
         val speedup = if (cachedElapsedMs > 0.0) unCachedElapsedMs / cachedElapsedMs else 100.0
         println("=== TEXT CACHE BENCHMARK (2,000 iterations) ===")
