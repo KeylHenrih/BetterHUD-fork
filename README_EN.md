@@ -190,6 +190,7 @@ cd BetterHUD-fork
 ## Technical Architecture & Specification
 
 For detailed mathematical specifications of time synchronization ($M$, $L$, lookahead), vertex quad encoding tables, GLSL shader generation, and dispatcher ID bit manipulation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For guidelines on choosing cycle periods for loop animations and the 24000 divisor table, see [docs/ANIMATIONS.md](docs/ANIMATIONS.md).
 
 ---
 

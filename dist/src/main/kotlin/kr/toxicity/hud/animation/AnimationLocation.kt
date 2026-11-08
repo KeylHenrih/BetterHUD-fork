@@ -63,6 +63,9 @@ data class AnimationLocation(
             }.getOrNull()
 
             return if (clientAnim != null) {
+                if (type == AnimationType.LOOP && duration > 0 && 24000 % duration != 0) {
+                    warn("Client animation '$elemName' has loop duration=$duration which does not divide 24000 (remainder = ${24000 % duration}). Animation will experience a phase jump once per 20 minutes (midnight). Consider using a divisor of 24000 (e.g., 20, 30, 40, 60, 80, 100, 120, 200, 240).")
+                }
                 AnimationElementRegistry.register(elemName, AnimationMode.CLIENT, type, "Transpiled to GLSL shader (${type.name})")
                 AnimationLocation(type, listOf(PixelLocation.zero), clientAnim)
             } else {
