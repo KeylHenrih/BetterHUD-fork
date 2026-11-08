@@ -33,7 +33,7 @@ class PopupIteratorImpl(
     private var i = -1
     private var removal = false
     private val id = UUID.randomUUID()
-    private var spawnTime = player.worldTime()
+    private var spawnTime = -1L
 
     override fun getSpawnTime(): Long = spawnTime
     override fun resetSpawnTime(spawnTime: Long) {
@@ -75,6 +75,9 @@ class PopupIteratorImpl(
     private var _i = -1
     private var _mapper = emptyList<Runner<WidthComponent>>()
     override fun next(): List<WidthComponent> {
+        if (spawnTime < 0L) {
+            spawnTime = player.worldTime()
+        }
         if (_i != i) {
             _i = i
             refreshMapper()
