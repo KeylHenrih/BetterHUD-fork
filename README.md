@@ -45,8 +45,12 @@
    - *Архитектурное ограничение:* индивидуальный режим игрока и детекция Bedrock действуют **только на попапы**; постоянные элементы HUD (`ImageType.LISTENER` и `LOOP`-анимации) собираются в единый глобальный лейаут по настройке `animation-mode` в `shader.yml`.
    - Игроки Bedrock Edition (через GeyserMC / Floodgate) автоматически получают серверный рендеринг для попапов.
 6. **Инструменты диагностики:**
-   - `/hud debug-anim`: Дерево активных элементов интерфейса с отображением текущего режима (`[CLIENT]` или `[SERVER]`) и делителей M.
-   - `/hud debug-popup <popup> [hold|stop]`: Заморозка попапа на экране для визуальной проверки и выравнивания.
+   - Команды отладки доступны администраторам с правом `betterhud.admin` при включённом параметре `debug: true` в файле `plugins/BetterHud/config.yml` (после включения выполните `/hud reload`).
+   - `/hud debug-anim [player|all]`: Дерево активных элементов интерфейса с отображением текущего режима (`[CLIENT]` или `[SERVER]`), делителей M и значений lookahead альфы.
+   - `/hud debug-popup <popup> [hold|stop]`: Заморозка попапа на экране для визуальной проверки и выравнивания (`hold` — удерживать, `stop` — скрыть).
+   - `/hud debug-color <#hex>`: Тестирование Adventure/RGB цвета.
+   - `/hud debug-italic`: Отображение тестового попапа курсива (требует `debug: true`).
+   - Для аппаратного зонда матриц (`debug_probe_popup`) требуется также установить `animation-debug-probe: true` в `config.yml`.
 
 ---
 
@@ -154,13 +158,21 @@ animation-debug-probe: false
 ## Команды администратора
 
 - `/hud popup show <player|all> <popup>`: Отображение указанного попапа игроку или всем игрокам (например `/hud popup show all damage_indicator_1` или `/hud popup show Keyl item_pickup`).
-- `/hud debug-popup <popup> [hold|stop]`: Вызов и удержание попапа на экране для визуального анализа (`hold` — удерживать бесконечно, `stop` — скрыть).
 - `/hud animation-mode <self|player> [client|server|auto]`: Запрос или переключение режима анимаций для себя или конкретного игрока без перезагрузки сервера (действует на попапы; элементы HUD подчиняются глобальному `animation-mode` из `shader.yml`).
   - `auto`: Клиентский режим для Java Edition, серверный режим для Bedrock Edition.
   - `server`: Принудительный классический серверный рендеринг (20 TPS).
   - `client`: Принудительный клиентский режим на GPU (144+ FPS).
-- `/hud debug-anim [player|all]`: Просмотр дерева зарегистрированных элементов HUD, их режима (`[CLIENT]` или `[SERVER]`), делителей M и значений lookahead альфы.
 - `/hud reload`: Безопасная перезагрузка конфигурации BetterHud и пересборка ресурс-паков шейдеров.
+
+### Команды отладки (требуют `betterhud.admin` и `debug: true` в `config.yml`):
+> [!NOTE]
+> Для использования отладочных команд установите `debug: true` в `plugins/BetterHud/config.yml` и примените `/hud reload`.
+> Для аппаратного зонда матриц (`debug_probe_popup`) требуется ключ `animation-debug-probe: true`. Для замеров скоса курсива (`debug_italic_popup`) требуется `debug: true`.
+
+- `/hud debug-anim [player|all]`: Просмотр дерева зарегистрированных элементов HUD, их режима (`[CLIENT]` или `[SERVER]`), делителей M и значений lookahead альфы.
+- `/hud debug-popup <popup> [hold|stop]`: Вызов и удержание попапа на экране для визуального анализа (`hold` — удерживать бесконечно, `stop` — скрыть).
+- `/hud debug-color <#hex>`: Проверка точного формата цвета.
+- `/hud debug-italic`: Вызов тестового попапа `debug_italic_popup` для проверки курсива.
 
 ---
 
@@ -182,7 +194,7 @@ cd BetterHUD-fork
 # Сборка готового плагина для Bukkit / Paper / Purpur
 ./gradlew :bootstrap:bukkit:shadowJar --no-daemon
 
-# Собранный файл: build/libs/BetterHud-bukkit-2.2.0-fork.4.jar
+# Собранный файл: build/libs/BetterHud-bukkit-2.2.0-fork.5.jar
 ```
 
 ---

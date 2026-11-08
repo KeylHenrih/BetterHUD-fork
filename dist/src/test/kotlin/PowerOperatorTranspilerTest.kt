@@ -210,17 +210,23 @@ class PowerOperatorTranspilerTest {
         val expressions = listOf(
             "(t - 5)^2",
             "t^3",
+            "(t / 10)^2",
             "2^t",
+            "t^0",
             "(t - 3)^-1",
-            "abs(t)^0.5"
+            "t^0.5"
         )
 
+        println("=== POWER OPERATOR PARITY GRID (-20.0..20.0, step 0.25) ===")
         for (expr in expressions) {
             val teq = TEquation(expr)
             val glsl = GlslTranspiler.transpile(expr)
+            var maxDiff = 0.0
+            var pointsTested = 0
+            var nanPoints = 0
 
             var t = -20.0
-            while (t <= 20.0) {
+            while (t <= 20.01) {
                 // For (t - 3)^-1, skip singularity at t = 3.0
                 if (expr == "(t - 3)^-1" && abs(t - 3.0) < 1e-4) {
                     t += 0.25
@@ -230,15 +236,28 @@ class PowerOperatorTranspilerTest {
                 val expected = teq.evaluate(t)
                 val actual = evalGlsl(glsl, t)
 
-                val diff = abs(expected - actual)
-                assertTrue(
-                    diff < 1e-3,
-                    "Equation '$expr' mismatch at t=$t: expected $expected (exp4j), but got $actual (GLSL: $glsl), diff=$diff"
-                )
+                if (expected.isNaN()) {
+                    nanPoints++
+                    // For t < 0 on t^0.5, exp4j gives NaN, shader safely returns 0.0
+                    assertEquals(0.0, actual, 1e-6, "Shader must safely yield 0.0 where exp4j gives NaN for '$expr' at t=$t")
+                } else {
+                    val diff = abs(expected - actual)
+                    if (diff > maxDiff) maxDiff = diff
+                    assertTrue(
+                        diff < 1e-3,
+                        "Equation '$expr' mismatch at t=$t: expected $expected (exp4j), but got $actual (GLSL: $glsl), diff=$diff"
+                    )
+                    pointsTested++
+                }
 
                 t += 0.25
             }
+            println("Expression: %-15s | Max Diff: %.6f px | Valid Points: %3d | NaN Fallback Points: %2d".format(
+                expr, maxDiff, pointsTested, nanPoints
+            ))
+            println("  -> Transpiled GLSL: $glsl")
         }
+        println("=============================================================")
     }
 
     @Test

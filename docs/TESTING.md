@@ -12,7 +12,7 @@ This guide provides a comprehensive checklist for testing BetterHUD client-side 
 
 ## 1. Prerequisites & Installation
 
-1. Copy the built `BetterHud-bukkit-2.2.0-fork.4.jar` into your server's `plugins/` directory.
+1. Copy the built `BetterHud-bukkit-2.2.0-fork.5.jar` into your server's `plugins/` directory.
 2. Ensure you are running Minecraft Java Edition 1.21.4 through 1.21.6 / 26.1+.
 3. Join the server and verify that the plugin loaded cleanly:
    ```
@@ -25,9 +25,14 @@ This guide provides a comprehensive checklist for testing BetterHUD client-side 
 
 This test directly probes hardware vertex shader calculations (alpha decoding, channel precision, and vertex displacement).
 
+> [!IMPORTANT]
+> All `/hud debug-*` commands require operator/`betterhud.admin` permission AND `debug: true` in `plugins/BetterHud/config.yml`.
+> The hardware test probe additionally requires `animation-debug-probe: true`.
+
 ### Steps:
 1. Open `plugins/BetterHud/config.yml` on the server and set:
    ```yaml
+   debug: true
    animation-debug-probe: true
    ```
 2. Reload BetterHUD:
@@ -97,7 +102,27 @@ Verify that popups hold on their final frame without cyclic re-triggering or pre
 
 ---
 
-## 5. Capturing Debug Information & Logs
+## 5. Test 4: Italic Slant Parity (`debug-italic`)
+
+Verify that italic text slant angle is compensated accurately on GPU:
+1. Ensure `debug: true` is set in `config.yml` and `/hud reload` has been run.
+2. Execute:
+   ```
+   /hud debug-italic
+   ```
+   Or:
+   ```
+   /hud debug-popup debug_italic_popup hold
+   ```
+3. **Expected:** The italic and non-italic text quads align seamlessly without pixel distortion or slant clipping across line breaks.
+4. **Dismiss:**
+   ```
+   /hud debug-popup debug_italic_popup clear
+   ```
+
+---
+
+## 6. Capturing Debug Information & Logs
 
 When reporting test results across different hardware:
 1. Press `F3` in-game.

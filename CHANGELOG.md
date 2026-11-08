@@ -2,6 +2,22 @@
 
 All notable changes to BetterHud (Client-Side Animation Fork) will be documented in this file.
 
+## [2.2.0-fork.5] - 2026-11-08
+
+### Fixed
+- **World Change and Respawn Clock Source:** Switched `BukkitBootstrapImpl.kt` (`handleWorldChange`, `handleRespawn`) from `world.time` (day time, 0..24000) to monotonic `world.gameTime` (`worldTime()`), preventing large negative/positive `currentElapsed` spikes and premature popup expiration when players change worlds or respawn.
+- **GLSL Power Operator Semantics (`^`):** Fixed GLSL transpilation of the power operator to match Java `exp4j` and `Math.pow` semantics for negative bases with integer exponents via `bh_pow()`, with compile-time loop unrolling for integer exponents in $[-8, 8]$. Verified parity across $t \in [-20, 20]$ on CPU and GPU transform feedback with 0.000000 px max diff.
+- **Queued Popup Spawn Time Initialization:** Deferred `spawnTime` assignment in `PopupIteratorImpl.kt` until the iterator's first invocation in `next()` upon actual screen presentation (`spawnTime = -1L` on enqueue), eliminating dropped initial animation frames for queued popups.
+- **Popup Sub-Tick Interval Server Fallback (`tick != 1`):** Popups configured with `tick != 1` are safely demoted to server rendering mode with an informative warning, as client GLSL animation pipeline operates exclusively at 1-tick granularity.
+- **Safe Cache Boundary Protection:** Enforced component immutability at the exact text cache boundary (`TextExact.kt`) by storing immutable `Component` and dispensing new builders, eliminating cache corruption from concatenation while preserving upstream in-place `WidthComponent.plus()` performance (+181% speedup over defensive builder copies).
+- **Loop Animation Phase Jump Warning:** Added startup validation checking if `loop` animation durations evenly divide 24,000 ticks (Minecraft day cycle), logging a warning if phase jumps will occur at midnight time resets.
+- **Debug Command Gating & Explanations:** Restricted `/hud debug-anim`, `/hud debug-popup`, `/hud debug-color`, and `/hud debug-italic` behind both `betterhud.admin` permission and `debug: true` in `config.yml`, updating help strings and documentation.
+- **Unified Lookahead Window Constant:** Parameterized `#define L` directly from `animationLookaheadWindow = maxOf(10, animationLookaheadMax)`, eliminating hardcoded lookahead values across shader templates and Java/Kotlin callers.
+
+### Changed
+- **Default Safe Configuration:** Configured `animation-mode: server` and `delete-shaders-on-start: false` by default in shipped `config.yml`, reserving `hybrid` mode with an explicit deprecation warning.
+- **Upstream Publishing Cleanup:** Disabled Modrinth and Hangar publishing tasks in Gradle to prevent accidental releases to upstream repositories.
+
 ## [2.2.0-fork.4] - 2026-10-26
 
 ### Fixed

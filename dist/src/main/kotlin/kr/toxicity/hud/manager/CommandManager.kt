@@ -212,7 +212,7 @@ object CommandManager : BetterHudManager {
 
             //DebugAnim
             @Command
-            @Description(key = "betterhud.debug_anim.description", defaultValue = "Prints client animation debug information.")
+            @Description(key = "betterhud.debug_anim.description", defaultValue = "Prints client animation debug information (requires debug: true in config.yml).")
             @Aliases(aliases = ["debug-anim", "da"])
             @Permission("betterhud.admin")
             fun debugAnim(@Source me: BetterCommandSource, @Option target: HudPlayerStack?) {
@@ -221,7 +221,7 @@ object CommandManager : BetterHudManager {
                     return
                 }
                 if (!ConfigManagerImpl.debug()) {
-                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    me.warn("Debug mode is disabled in config.yml (debug: false). Set 'debug: true' in plugins/BetterHud/config.yml and run /hud reload.")
                     return
                 }
                 val targets = target?.toList() ?: (me as? HudPlayer)?.let { listOf(it) } ?: PlayerManagerImpl.allHudPlayer
@@ -297,7 +297,7 @@ object CommandManager : BetterHudManager {
             //DebugAnim
 
             @Command
-            @Description(key = "betterhud.debug_popup.description", defaultValue = "Spawns a popup for animation debugging.")
+            @Description(key = "betterhud.debug_popup.description", defaultValue = "Spawns a popup for animation debugging (requires debug: true in config.yml).")
             @Aliases(aliases = ["debug-popup", "dp"])
             @Permission("betterhud.admin")
             fun debugPopup(@Source me: BetterCommandSource, popups: PopupStack, @Option hold: String?) {
@@ -306,7 +306,7 @@ object CommandManager : BetterHudManager {
                     return
                 }
                 if (!ConfigManagerImpl.debug()) {
-                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    me.warn("Debug mode is disabled in config.yml (debug: false). Set 'debug: true' in plugins/BetterHud/config.yml and run /hud reload.")
                     return
                 }
                 val isHold = hold?.equals("hold", ignoreCase = true) == true || hold?.equals("true", ignoreCase = true) == true
@@ -339,7 +339,7 @@ object CommandManager : BetterHudManager {
             }
 
             @Command
-            @Description(key = "betterhud.debug_color.description", defaultValue = "Tests hex color formatting.")
+            @Description(key = "betterhud.debug_color.description", defaultValue = "Tests hex color formatting (requires debug: true in config.yml).")
             @Aliases(aliases = ["debug-color"])
             @Permission("betterhud.admin")
             fun debugColor(
@@ -351,7 +351,7 @@ object CommandManager : BetterHudManager {
                     return
                 }
                 if (!ConfigManagerImpl.debug()) {
-                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    me.warn("Debug mode is disabled in config.yml (debug: false). Set 'debug: true' in plugins/BetterHud/config.yml and run /hud reload.")
                     return
                 }
                 val cleanHex = if (hex.startsWith("#")) hex else "#$hex"
@@ -366,7 +366,7 @@ object CommandManager : BetterHudManager {
             }
 
             @Command
-            @Description(key = "betterhud.debug_italic.description", defaultValue = "Tests italic text rendering.")
+            @Description(key = "betterhud.debug_italic.description", defaultValue = "Tests italic text rendering (requires debug: true in config.yml).")
             @Aliases(aliases = ["debug-italic"])
             @Permission("betterhud.admin")
             fun debugItalic(@Source me: BetterCommandSource) {
@@ -375,7 +375,7 @@ object CommandManager : BetterHudManager {
                     return
                 }
                 if (!ConfigManagerImpl.debug()) {
-                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    me.warn("Debug mode is disabled in config.yml (debug: false). Set 'debug: true' in plugins/BetterHud/config.yml and run /hud reload.")
                     return
                 }
                 val player = me as? HudPlayer ?: run {
@@ -387,7 +387,7 @@ object CommandManager : BetterHudManager {
                     popup.show(UpdateEvent.EMPTY, player)
                     me.info("Spawned debug italic popup.")
                 } else {
-                    me.info("Debug italic popup not found (enable debug: true and reload).")
+                    me.info("Debug italic popup not found. Ensure 'debug: true' is set in plugins/BetterHud/config.yml and execute '/hud reload'.")
                 }
             }
 

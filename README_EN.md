@@ -45,8 +45,12 @@
    - *Architectural limitation:* per-player animation mode and Bedrock detection apply **to popups only**; persistent HUD elements (`ImageType.LISTENER` health/mana bars and `LOOP` animations) follow global `animation-mode` in `shader.yml`.
    - Bedrock Edition players (via GeyserMC / Floodgate) automatically receive server-side rendering for popups.
 6. **Diagnostic & Debug Suite:**
-   - `/hud debug-anim`: Live element inspect tree showing real-time client/server registration and modulus divisors.
-   - `/hud debug-popup <popup> [hold|stop]`: Freezes popups on screen for visual inspection and alignment.
+   - Debug commands are restricted to administrators with `betterhud.admin` permission and require `debug: true` in `plugins/BetterHud/config.yml` (run `/hud reload` after changing).
+   - `/hud debug-anim [player|all]`: Live element inspect tree showing real-time client/server registration, modulus divisors, and lookahead alpha values.
+   - `/hud debug-popup <popup> [hold|stop]`: Freezes popups on screen for visual inspection and alignment (`hold` to freeze, `stop` to clear).
+   - `/hud debug-color <#hex>`: Tests exact 24-bit RGB hex colors.
+   - `/hud debug-italic`: Spawns a test popup to verify italic slant angle compensation (requires `debug: true`).
+   - The hardware GPU color probe matrix (`debug_probe_popup`) additionally requires `animation-debug-probe: true` in `config.yml`.
 
 ---
 
@@ -154,13 +158,21 @@ animation-debug-probe: false
 ## Administration Commands
 
 - `/hud popup show <player|all> <popup>`: Displays the specified popup to a player or all online players (e.g. `/hud popup show all damage_indicator_1` or `/hud popup show Steve item_pickup`).
-- `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup on screen for visual inspection and alignment (`hold` to freeze indefinitely, `stop` to remove).
 - `/hud animation-mode <self|player> [client|server|auto]`: Queries or changes animation mode for yourself or a target player without server reload (applies to popups only; HUD elements follow global `animation-mode` in `shader.yml`).
   - `auto`: Uses client animations on Java Edition, falls back to server mode on Bedrock Edition.
   - `server`: Forces classic server-side rendering (20 TPS).
   - `client`: Forces GPU client-side rendering (144+ FPS).
-- `/hud debug-anim [player|all]`: Displays real-time inspection tree of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), registered modulus $M$, and lookahead alpha values.
 - `/hud reload`: Safely reloads BetterHud configuration and rebuilds shader resource packs.
+
+### Debug Commands (requires `betterhud.admin` and `debug: true` in `config.yml`):
+> [!NOTE]
+> To enable debug commands, set `debug: true` in `plugins/BetterHud/config.yml` and run `/hud reload`.
+> For the hardware matrix test (`debug_probe_popup`), enable `animation-debug-probe: true`. For italic slant verification (`debug_italic_popup`), enable `debug: true`.
+
+- `/hud debug-anim [player|all]`: Displays real-time inspection tree of all active HUD elements, their rendering mode (`[CLIENT]` vs `[SERVER]`), registered modulus $M$, and lookahead alpha values.
+- `/hud debug-popup <popup> [hold|stop]`: Displays or freezes a popup on screen for visual inspection and alignment (`hold` to freeze indefinitely, `stop` to remove).
+- `/hud debug-color <#hex>`: Tests exact 24-bit RGB hex colors.
+- `/hud debug-italic`: Spawns `debug_italic_popup` for testing italic slant compensation.
 
 ---
 
@@ -182,7 +194,7 @@ cd BetterHUD-fork
 # Build Bukkit/Paper shadow jar
 ./gradlew :bootstrap:bukkit:shadowJar
 
-# Output jar: build/libs/BetterHud-bukkit-2.2.0-fork.4.jar
+# Output jar: build/libs/BetterHud-bukkit-2.2.0-fork.5.jar
 ```
 
 ---

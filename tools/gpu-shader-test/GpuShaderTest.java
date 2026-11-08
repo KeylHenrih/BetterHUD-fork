@@ -852,6 +852,102 @@ public class GpuShaderTest {
         System.out.printf("  -> Non-Italic (Regular & Bold): Max Diff = %.6f px (100%% BIT-FOR-BIT INVARIANT)%n", maxRegularDiff);
         System.out.printf("  -> Italic & Bold+Italic: Shift = +%.6f px (EXACTLY +1.750000 px)%n%n", minItalicDiff);
 
+        // -------------------------------------------------------------------------
+        // TEST 7: PHYSICAL GPU POWER OPERATOR ^ PARITY ON REAL HARDWARE
+        // -------------------------------------------------------------------------
+        System.out.println("[Test 7] Testing GLSL Power Operator ^ on Physical GPU via Transform Feedback...");
+        String[] testEquations = {
+            "(t - 5)^2",
+            "t^3",
+            "(t / 10)^2",
+            "2^t",
+            "t^0",
+            "(t - 3)^-1",
+            "t^0.5"
+        };
+
+        int numPoints = 161; // -20.0 to 20.0 step 0.25
+        FloatBuffer tInBuffer = BufferUtils.createFloatBuffer(numPoints);
+        for (int i = 0; i < numPoints; i++) {
+            float tVal = -20.0f + i * 0.25f;
+            tInBuffer.put(tVal);
+        }
+        tInBuffer.flip();
+
+        int inTVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, inTVbo);
+        glBufferData(GL_ARRAY_BUFFER, tInBuffer, GL_STATIC_DRAW);
+
+        int tfTVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, tfTVbo);
+        glBufferData(GL_ARRAY_BUFFER, (long)numPoints * Float.BYTES, GL_DYNAMIC_READ);
+
+        for (String eq : testEquations) {
+            String glslExpr = kr.toxicity.hud.equation.GlslTranspiler.INSTANCE.transpile(eq);
+            String vsSource = "#version 330 core\n" +
+                "layout (location = 0) in float inT;\n" +
+                "out float outVal;\n" +
+                "float bh_pow(float b, float e) {\n" +
+                "    if (b == 0.0) return 0.0;\n" +
+                "    if (floor(e) == e) {\n" +
+                "        if (floor(e * 0.5) * 2.0 == e) return pow(abs(b), e);\n" +
+                "        else return sign(b) * pow(abs(b), e);\n" +
+                "    }\n" +
+                "    return b >= 0.0 ? pow(b, e) : 0.0;\n" +
+                "}\n" +
+                "void main() {\n" +
+                "    float t = inT;\n" +
+                "    outVal = " + glslExpr + ";\n" +
+                "}\n";
+
+            int eqProg = compileTfProgram(vsSource, new CharSequence[]{"outVal"});
+            glUseProgram(eqProg);
+
+            glBindBuffer(GL_ARRAY_BUFFER, inTVbo);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 1, GL_FLOAT, false, Float.BYTES, 0);
+
+            glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, tfTVbo);
+            glEnable(GL_RASTERIZER_DISCARD);
+            glBeginTransformFeedback(GL_POINTS);
+            glDrawArrays(GL_POINTS, 0, numPoints);
+            glEndTransformFeedback();
+            glDisable(GL_RASTERIZER_DISCARD);
+
+            FloatBuffer gpuOut = BufferUtils.createFloatBuffer(numPoints);
+            glBindBuffer(GL_ARRAY_BUFFER, tfTVbo);
+            glGetBufferSubData(GL_ARRAY_BUFFER, 0, gpuOut);
+
+            kr.toxicity.hud.equation.TEquation teq = new kr.toxicity.hud.equation.TEquation(eq);
+            float maxGpuDiff = 0.0f;
+            int validPoints = 0;
+            int nanPoints = 0;
+
+            for (int i = 0; i < numPoints; i++) {
+                float tVal = -20.0f + i * 0.25f;
+                if (eq.equals("(t - 3)^-1") && Math.abs(tVal - 3.0f) < 1e-4) {
+                    continue;
+                }
+                double expected = teq.evaluate((double)tVal);
+                float actualGpu = gpuOut.get(i);
+
+                if (Double.isNaN(expected)) {
+                    nanPoints++;
+                    assertEquals(0.0f, actualGpu, 0.0001f, "GPU must yield 0.0 for NaN point at t=" + tVal);
+                } else {
+                    float diff = Math.abs((float)expected - actualGpu);
+                    if (diff > maxGpuDiff) maxGpuDiff = diff;
+                    float allowedTol = Math.max(0.001f, Math.abs((float)expected) * 1e-4f);
+                    assertEquals((float)expected, actualGpu, allowedTol, "GPU vs exp4j for '" + eq + "' at t=" + tVal);
+                    validPoints++;
+                }
+            }
+            System.out.printf("  GPU Parity for %-12s: Max Diff = %.6f px (valid=%d, NaN fallback=%d)%n",
+                eq, maxGpuDiff, validPoints, nanPoints);
+            glDeleteProgram(eqProg);
+        }
+        System.out.println("  -> Physical GPU Power Operator Parity: 100% PASSED\n");
+
         System.out.println("============================================================");
         System.out.println("  ALL HARDWARE GPU TRANSFORM FEEDBACK TESTS PASSED! (0 ERRORS)");
         System.out.println("============================================================");
