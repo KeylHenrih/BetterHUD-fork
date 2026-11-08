@@ -43,13 +43,15 @@ tasks.register("velocityJar") {
     dependsOn(velocity.tasks.build)
 }
 
+// Upstream publish tasks disabled for fork
 tasks.register("modrinthPublish") {
-    finalizedBy(
-        tasks.modrinthSyncBody,
-        bukkit.tasks.modrinth,
-        fabric.tasks.modrinth,
-        velocity.tasks.modrinth
-    )
+    enabled = false
+}
+
+tasks.matching {
+    it.name.contains("modrinth", ignoreCase = true) || it.name.contains("hangar", ignoreCase = true)
+}.configureEach {
+    enabled = false
 }
 
 tasks {

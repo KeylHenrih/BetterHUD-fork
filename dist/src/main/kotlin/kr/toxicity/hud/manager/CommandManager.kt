@@ -216,6 +216,14 @@ object CommandManager : BetterHudManager {
             @Aliases(aliases = ["debug-anim", "da"])
             @Permission("betterhud.admin")
             fun debugAnim(@Source me: BetterCommandSource, @Option target: HudPlayerStack?) {
+                if (!me.hasPermission("betterhud.admin")) {
+                    me.warn("You do not have permission 'betterhud.admin' to use this command.")
+                    return
+                }
+                if (!ConfigManagerImpl.debug()) {
+                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    return
+                }
                 val targets = target?.toList() ?: (me as? HudPlayer)?.let { listOf(it) } ?: PlayerManagerImpl.allHudPlayer
                 me.info("=== BetterHud Animation Debug ===")
                 me.info("Global Animation Mode: ${ConfigManagerImpl.animationMode}")
@@ -293,6 +301,14 @@ object CommandManager : BetterHudManager {
             @Aliases(aliases = ["debug-popup", "dp"])
             @Permission("betterhud.admin")
             fun debugPopup(@Source me: BetterCommandSource, popups: PopupStack, @Option hold: String?) {
+                if (!me.hasPermission("betterhud.admin")) {
+                    me.warn("You do not have permission 'betterhud.admin' to use this command.")
+                    return
+                }
+                if (!ConfigManagerImpl.debug()) {
+                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    return
+                }
                 val isHold = hold?.equals("hold", ignoreCase = true) == true || hold?.equals("true", ignoreCase = true) == true
                 val isStop = hold?.equals("stop", ignoreCase = true) == true || hold?.equals("cancel", ignoreCase = true) == true || hold?.equals("clear", ignoreCase = true) == true
                 val targets = (me as? HudPlayer)?.let { listOf(it) } ?: PlayerManagerImpl.allHudPlayer
@@ -330,6 +346,14 @@ object CommandManager : BetterHudManager {
                 @Source me: BetterCommandSource,
                 hex: String
             ) {
+                if (!me.hasPermission("betterhud.admin")) {
+                    me.warn("You do not have permission 'betterhud.admin' to use this command.")
+                    return
+                }
+                if (!ConfigManagerImpl.debug()) {
+                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    return
+                }
                 val cleanHex = if (hex.startsWith("#")) hex else "#$hex"
                 val parsedColor = net.kyori.adventure.text.format.TextColor.fromHexString(cleanHex)
                 if (parsedColor == null) {
@@ -339,6 +363,32 @@ object CommandManager : BetterHudManager {
                 val comp = net.kyori.adventure.text.Component.text("■ Exact Color Test: $cleanHex")
                     .color(parsedColor)
                 me.info(comp)
+            }
+
+            @Command
+            @Description(key = "betterhud.debug_italic.description", defaultValue = "Tests italic text rendering.")
+            @Aliases(aliases = ["debug-italic"])
+            @Permission("betterhud.admin")
+            fun debugItalic(@Source me: BetterCommandSource) {
+                if (!me.hasPermission("betterhud.admin")) {
+                    me.warn("You do not have permission 'betterhud.admin' to use this command.")
+                    return
+                }
+                if (!ConfigManagerImpl.debug()) {
+                    me.warn("Debug mode is disabled in config.yml (debug: false).")
+                    return
+                }
+                val player = me as? HudPlayer ?: run {
+                    me.warn("Only players can use debug-italic.")
+                    return
+                }
+                val popup = PopupManagerImpl.getPopup("debug_italic_popup") ?: PopupManagerImpl.getPopup("debug-italic")
+                if (popup != null) {
+                    popup.show(UpdateEvent.EMPTY, player)
+                    me.info("Spawned debug italic popup.")
+                } else {
+                    me.info("Debug italic popup not found (enable debug: true and reload).")
+                }
             }
 
             @Command

@@ -15,6 +15,21 @@ object GlslTranspiler {
         },
         object : Function("clamp", 3) {
             override fun apply(vararg p0: Double): Double = 0.0
+        },
+        object : Function("round", 1) {
+            override fun apply(vararg p0: Double): Double = 0.0
+        },
+        object : Function("sec", 1) {
+            override fun apply(vararg p0: Double): Double = 0.0
+        },
+        object : Function("csc", 1) {
+            override fun apply(vararg p0: Double): Double = 0.0
+        },
+        object : Function("toradian", 1) {
+            override fun apply(vararg p0: Double): Double = 0.0
+        },
+        object : Function("todegree", 1) {
+            override fun apply(vararg p0: Double): Double = 0.0
         }
     ).associateBy { it.name }
 
@@ -112,9 +127,16 @@ object GlslTranspiler {
                     args.reverse()
 
                     val glslFunc = when (val name = fn.name.lowercase()) {
-                        "sin", "cos", "tan", "asin", "acos", "atan", "abs", "sqrt", "ceil", "floor", "exp", "min", "max", "clamp" -> {
+                        "sin", "cos", "tan", "asin", "acos", "atan", "abs", "sqrt", "ceil", "floor", "round", "exp", "min", "max", "clamp" -> {
                             "$name(${args.joinToString(", ")})"
                         }
+                        "cot" -> "(1.0 / (abs(tan(${args[0]})) < 1e-6 ? 1e-6 : (tan(${args[0]}))))"
+                        "sec" -> "(1.0 / (abs(cos(${args[0]})) < 1e-6 ? 1e-6 : (cos(${args[0]}))))"
+                        "csc" -> "(1.0 / (abs(sin(${args[0]})) < 1e-6 ? 1e-6 : (sin(${args[0]}))))"
+                        "log1p" -> "log(1.0 + (${args[0]}))"
+                        "expm1" -> "(exp(${args[0]}) - 1.0)"
+                        "toradian" -> "radians(${args[0]})"
+                        "todegree" -> "degrees(${args[0]})"
                         "log" -> "log(${args[0]})"
                         "log10" -> "(log(${args[0]}) / 2.30258509)"
                         "log2" -> "log2(${args[0]})"
