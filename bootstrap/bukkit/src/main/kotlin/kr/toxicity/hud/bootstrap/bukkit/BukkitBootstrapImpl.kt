@@ -233,14 +233,15 @@ class BukkitBootstrapImpl : BukkitBootstrap, JavaPlugin() {
             fun PlayerChangedWorldEvent.changeWorld() {
                 val hudPlayer = PlayerManagerImpl.getHudPlayer(player.uniqueId) ?: return
                 if (hudPlayer is kr.toxicity.hud.player.HudPlayerImpl) {
-                    hudPlayer.handleWorldChange(player.world.time)
+                    hudPlayer.handleWorldChange()
                 }
             }
             @EventHandler
             fun PlayerRespawnEvent.respawn() {
                 val hudPlayer = PlayerManagerImpl.getHudPlayer(player.uniqueId) ?: return
                 if (hudPlayer is kr.toxicity.hud.player.HudPlayerImpl) {
-                    hudPlayer.handleRespawn(respawnLocation.world?.time ?: player.world.time)
+                    val targetGameTime = respawnLocation.world?.gameTime ?: hudPlayer.worldTime()
+                    hudPlayer.handleRespawn(targetGameTime)
                 }
             }
         }, this)

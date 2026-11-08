@@ -216,7 +216,7 @@ abstract class HudPlayerImpl : HudPlayer {
 
     override fun pointers(): MutableSet<PointedLocation> = pointers
 
-    fun handleWorldChange(newWorldTime: Long) {
+    fun handleWorldChange(newWorldTime: Long = worldTime()) {
         if (!isClientAnimationEnabled()) return
         kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
         popupGroup.values.forEach { group ->
@@ -226,7 +226,7 @@ abstract class HudPlayerImpl : HudPlayer {
         }
     }
 
-    fun handleRespawn(newWorldTime: Long) {
+    fun handleRespawn(newWorldTime: Long = worldTime()) {
         if (!isClientAnimationEnabled()) return
         kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
         popupGroup.values.forEach { group ->
