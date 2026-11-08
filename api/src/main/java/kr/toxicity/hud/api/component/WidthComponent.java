@@ -15,7 +15,7 @@ public record WidthComponent(@NotNull TextComponent.Builder component, int width
      * @return Merged component
      */
     public @NotNull WidthComponent plus(@NotNull WidthComponent other) {
-        return other.component.content().isEmpty() && other.component.children().isEmpty() ? this : new WidthComponent(component.append(other.component), width + other.width);
+        return other.component.content().isEmpty() && other.component.children().isEmpty() ? this : new WidthComponent(component.build().toBuilder().append(other.component), width + other.width);
     }
 
     /**
