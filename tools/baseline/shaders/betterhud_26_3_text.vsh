@@ -78,6 +78,14 @@ float easeOutQuad(float x) { return x * (2.0 - x); }
 float easeInOutQuad(float x) { if (x < 0.5) return 2.0 * x * x; return -1.0 + (4.0 - 2.0 * x) * x; }
 float easeOutSine(float x) { return sin((x * 3.1415926535) / 2.0); }
 float easeInOutSine(float x) { return -(cos(3.1415926535 * x) - 1.0) / 2.0; }
+float bh_pow(float b, float e) {
+    if (b == 0.0) return 0.0;
+    if (floor(e) == e) {
+        if (floor(e * 0.5) * 2.0 == e) return pow(abs(b), e);
+        else return sign(b) * pow(abs(b), e);
+    }
+    return b >= 0.0 ? pow(b, e) : 0.0;
+}
 
 void main() {
     vec3 pos = Position;

@@ -73,7 +73,29 @@ object GlslTranspiler {
                                 "*" -> stack.push("($left * $right)")
                                 "/" -> stack.push("($left / (abs($right) < 1e-6 ? 1e-6 : ($right)))")
                                 "%" -> stack.push("($left - $right * trunc($left / (abs($right) < 1e-6 ? 1e-6 : ($right))))")
-                                "^" -> stack.push("pow(max(0.0, $left), $right)")
+                                "^" -> {
+                                    val expInt = parseConstantIntegerExponent(right)
+                                    if (expInt != null && expInt in -8..8) {
+                                        when {
+                                            expInt == 0 -> stack.push("1.0")
+                                            expInt == 1 -> stack.push("($left)")
+                                            expInt in 2..8 -> {
+                                                val factors = List(expInt) { "($left)" }.joinToString(" * ")
+                                                stack.push("($factors)")
+                                            }
+                                            expInt == -1 -> {
+                                                stack.push("(1.0 / (abs($left) < 1e-6 ? 1e-6 : ($left)))")
+                                            }
+                                            else -> {
+                                                val posExp = -expInt
+                                                val factors = List(posExp) { "($left)" }.joinToString(" * ")
+                                                stack.push("(1.0 / (abs($factors) < 1e-6 ? 1e-6 : ($factors)))")
+                                            }
+                                        }
+                                    } else {
+                                        stack.push("bh_pow($left, $right)")
+                                    }
+                                }
                                 else -> throw IllegalArgumentException("Unsupported binary operator in GLSL: ${op.symbol}")
                             }
                         }
@@ -114,5 +136,26 @@ object GlslTranspiler {
         }
 
         return stack.pop()
+    }
+
+    private fun parseConstantIntegerExponent(str: String): Int? {
+        var s = str.trim()
+        while (s.startsWith("(") && s.endsWith(")")) {
+            s = s.substring(1, s.length - 1).trim()
+        }
+        var isNegative = false
+        if (s.startsWith("-")) {
+            isNegative = true
+            s = s.substring(1).trim()
+            while (s.startsWith("(") && s.endsWith(")")) {
+                s = s.substring(1, s.length - 1).trim()
+            }
+        }
+        val d = s.toDoubleOrNull() ?: return null
+        if (d == kotlin.math.floor(d) && !d.isInfinite() && !d.isNaN()) {
+            val i = if (isNegative) -d.toInt() else d.toInt()
+            if (i in -8..8) return i
+        }
+        return null
     }
 }
