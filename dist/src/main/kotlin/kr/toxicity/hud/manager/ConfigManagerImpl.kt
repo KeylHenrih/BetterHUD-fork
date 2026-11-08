@@ -132,7 +132,7 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
         private set
     var textShadowFallback = TextShadowFallback.EXACT
         private set
-    var deleteShadersOnStart = true
+    var deleteShadersOnStart = false
         private set
 
     override fun start() {
@@ -158,7 +158,7 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
             val yaml = PluginConfiguration.CONFIG.create()
             debug = yaml.getAsBoolean("debug", false)
             val shaderYaml = runCatching { PluginConfiguration.SHADER.create() }.getOrNull()
-            deleteShadersOnStart = shaderYaml?.get("delete-shaders-on-start")?.asBoolean() ?: yaml.getAsBoolean("delete-shaders-on-start", true)
+            deleteShadersOnStart = shaderYaml?.get("delete-shaders-on-start")?.asBoolean() ?: yaml.getAsBoolean("delete-shaders-on-start", false)
             autoSaveTime = yaml.getAsLong("auto-save-time", 300) * 20
             locationProvideTime = yaml.getAsLong("location-provide-time", 1) * 20
             debugLevel = runCatching {
@@ -279,7 +279,7 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
             animationDebugSlowmo = (rawSlowmo ?: 1.0).coerceIn(0.01, 10.0)
 
             animationDebugProbe = getShaderSetting("animation-debug-probe")?.asBoolean() ?: false
-            deleteShadersOnStart = getShaderSetting("delete-shaders-on-start")?.asBoolean() ?: true
+            deleteShadersOnStart = getShaderSetting("delete-shaders-on-start")?.asBoolean() ?: false
             textClientMode = getShaderSetting("text-client-mode")?.asString()?.let { str ->
                 runCatching {
                     TextClientMode.valueOf(str.uppercase())
@@ -315,6 +315,9 @@ object ConfigManagerImpl : BetterHudManager, ConfigManager {
                     AnimationMode.SERVER
                 }
             } ?: AnimationMode.SERVER
+            if (animationMode == AnimationMode.HYBRID) {
+                warn("animation-mode 'hybrid' is currently reserved and operates identically to 'client'.")
+            }
         }.handleFailure {
             "Unable to load config.yml"
         }

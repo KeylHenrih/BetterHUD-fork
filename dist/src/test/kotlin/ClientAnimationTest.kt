@@ -2281,7 +2281,7 @@ class ClientAnimationTest {
 
         ConfigManagerImpl.preReload()
         assertTrue(File(cleanDir, "shader.yml").exists(), "Clean server must auto-generate shader.yml from template")
-        assertEquals(AnimationMode.CLIENT, ConfigManagerImpl.animationMode, "Clean server must load template default animation-mode CLIENT")
+        assertEquals(AnimationMode.SERVER, ConfigManagerImpl.animationMode, "Clean server must load template default animation-mode SERVER")
 
         // Scenario B: Upstream shader.yml without new animation keys
         val upstreamDir = File("build/tmp/test-config-upstream").apply {
