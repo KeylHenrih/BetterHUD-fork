@@ -37,7 +37,9 @@ object ListenerManagerImpl : BetterHudManager, ListenerManager {
                 if (value.clazz == max.clazz && value.clazz == Number::class.javaObjectType) {
                     HudListener {
                         runCatching {
-                            (value(it) as Number).toDouble() / (max(it) as Number).toDouble()
+                            val v = (value(it) as Number).toDouble()
+                            val m = (max(it) as Number).toDouble()
+                            if (m <= 0.0 || m.isNaN() || v.isNaN()) 0.0 else (v / m).coerceIn(0.0, 1.0)
                         }.getOrNull() ?: 0.0
                     }
                 } else throw RuntimeException("this type is not a number: ${value.clazz.simpleName} and ${max.clazz.simpleName}")
@@ -99,6 +101,8 @@ object ListenerManagerImpl : BetterHudManager, ListenerManager {
         private var t = 0
         private var delta = 0.0
         override fun invoke(plus: Double): Double {
+            if (plus.isNaN() || plus.isInfinite()) return if (value.isNaN() || value.isInfinite()) 0.0 else value
+            if (value.isNaN() || value.isInfinite()) value = plus
             val newDelta = plus - value
             if (abs(newDelta) >= DELTA_MIN_THRESHOLD && abs(newDelta - delta) > DELTA_THRESHOLD * abs(delta)) t = 0
             delta = newDelta
@@ -131,7 +135,7 @@ object ListenerManagerImpl : BetterHudManager, ListenerManager {
                 LazyValueAccess(
                     setting.delay,
                     setting.multiplier,
-                    initialBuild(player).coerceAtLeast(0.0).coerceAtMost(1.0)
+                    initialBuild(player).let { if (it.isNaN() || it.isInfinite()) 0.0 else it.coerceIn(0.0, 1.0) }
                 )
             }(get)
         }

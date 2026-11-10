@@ -37,7 +37,8 @@ class BukkitStandardModule : BukkitModule {
             "health" to { _ ->
                 {
                     HudListener { p ->
-                        p.bukkitPlayer.health / p.bukkitPlayer.maximumHealth
+                        val max = p.bukkitPlayer.maximumHealth
+                        if (max <= 0.0 || max.isNaN()) 0.0 else (p.bukkitPlayer.health / max).coerceIn(0.0, 1.0)
                     }
                 }
             },
@@ -45,7 +46,8 @@ class BukkitStandardModule : BukkitModule {
                 {
                     HudListener { p ->
                         (p.bukkitPlayer.vehicle as? LivingEntity)?.let { entity ->
-                            entity.health / entity.maximumHealth
+                            val max = entity.maximumHealth
+                            if (max <= 0.0 || max.isNaN()) 0.0 else (entity.health / max).coerceIn(0.0, 1.0)
                         } ?: 0.0
                     }
                 }
@@ -53,35 +55,37 @@ class BukkitStandardModule : BukkitModule {
             "food" to { _ ->
                 {
                     HudListener { p ->
-                        p.bukkitPlayer.foodLevel / 20.0
+                        (p.bukkitPlayer.foodLevel / 20.0).coerceIn(0.0, 1.0)
                     }
                 }
             },
             "armor" to { _ ->
                 {
                     HudListener { p ->
-                        p.bukkitPlayer.armor / 20.0
+                        (p.bukkitPlayer.armor / 20.0).coerceIn(0.0, 1.0)
                     }
                 }
             },
             "air" to { _ ->
                 {
                     HudListener { p ->
-                        (p.bukkitPlayer.remainingAir.toDouble() / p.bukkitPlayer.maximumAir).coerceAtLeast(0.0)
+                        val maxAir = p.bukkitPlayer.maximumAir
+                        if (maxAir <= 0) 0.0 else (p.bukkitPlayer.remainingAir.toDouble() / maxAir).coerceIn(0.0, 1.0)
                     }
                 }
             },
             "exp" to { _ ->
                 {
                     HudListener { p ->
-                        p.bukkitPlayer.exp.toDouble()
+                        p.bukkitPlayer.exp.toDouble().coerceIn(0.0, 1.0)
                     }
                 }
             },
             "absorption" to { _ ->
                 {
                     HudListener { p ->
-                        p.bukkitPlayer.absorptionAmount / p.bukkitPlayer.maximumHealth
+                        val max = p.bukkitPlayer.maximumHealth
+                        if (max <= 0.0 || max.isNaN()) 0.0 else (p.bukkitPlayer.absorptionAmount / max).coerceAtLeast(0.0)
                     }
                 }
             },

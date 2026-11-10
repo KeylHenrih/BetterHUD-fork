@@ -227,8 +227,9 @@ abstract class HudPlayerImpl : HudPlayer {
     }
 
     fun handleRespawn(newWorldTime: Long = worldTime()) {
-        if (!isClientAnimationEnabled()) return
         kr.toxicity.hud.image.enums.ImageType.removeTrackers(uuid())
+        lastSentComponent = null
+        lastSentColor = null
         popupGroup.values.forEach { group ->
             group.iterators.forEach { iter ->
                 iter.resetSpawnTime(newWorldTime)

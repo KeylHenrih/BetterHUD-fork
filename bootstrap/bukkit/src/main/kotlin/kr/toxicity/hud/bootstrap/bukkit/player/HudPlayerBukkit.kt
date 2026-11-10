@@ -16,24 +16,27 @@ class HudPlayerBukkit(
     private val player: Player,
     private val audience: Audience
 ) : HudPlayerImpl() {
+    private val livePlayer: Player
+        get() = Bukkit.getPlayer(player.uniqueId) ?: player
+
     override fun uuid(): UUID = player.uniqueId
-    override fun name(): String = player.name
-    override fun handle(): Any = player
+    override fun name(): String = livePlayer.name
+    override fun handle(): Any = livePlayer
     override fun audience(): Audience = audience
     override fun world(): WorldWrapper = WorldWrapper(
-        player.world.name
+        livePlayer.world.name
     )
-    override fun worldTime(): Long = player.world.gameTime
-    override fun ping(): Int = player.ping
+    override fun worldTime(): Long = livePlayer.world.gameTime
+    override fun ping(): Int = livePlayer.ping
 
-    override fun locale(): Locale = player.locale.let {
+    override fun locale(): Locale = livePlayer.locale.let {
         val split = it.split('_')
         if (split.size == 1) Locale.of(split[0].lowercase()) else Locale.of(split[0].lowercase(), split[1].uppercase())
     }
 
     override fun location(): LocationWrapper {
 
-        val loc = player.location
+        val loc = livePlayer.location
         return LocationWrapper(
             world(),
             loc.x,
